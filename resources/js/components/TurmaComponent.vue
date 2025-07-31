@@ -1,55 +1,118 @@
 <template>
   <div>
+    <h2>Turmas Salvas</h2>
+    <ul>
+      <li v-for="turma in turmasSalvas" :key="turma.id">
+        ({{ turma.id }}) ({{ turma.idanos }}) {{ turma.descricao }} - {{ turma.nome }}
+        <button @click="iniciarEdicao(turma)">Editar</button>
+      </li>
+    </ul>
     <h2>Cadastro de Turmas</h2>
     <table border="1" cellpadding="5">
       <thead>
         <tr>
-          <th>#</th>
           <th>Ano</th>
           <th>Nome da turma</th>
           <th>Ações</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(turma, idx) in turmas" :key="idx">
-          <td>{{ idx + 1 }}</td>
+        <tr>
           <td>
-            <select v-model="turma.ano">
+            <select v-model="turmas[0].ano">
               <option value="">Selecione...</option>
-              <option value="6F">6º Fundamental</option>
-              <option value="7F">7º Fundamental</option>
-              <option value="8F">8º Fundamental</option>
-              <option value="9F">9º Fundamental</option>
-              <option value="1M">1º - Médio</option>
-              <option value="2M">2º - Médio</option>
-              <option value="3M">3º - Médio</option>
+              <option v-for="ano in anos" :key="ano.idanos" :value="ano.idanos">
+                {{ ano.descricao }}
+              </option>
             </select>
           </td>
-          <td><input v-model="turma.nome" type="text" /></td>
+          <td><input v-model="turmas[0].nome" type="text" /></td>
           <td>
-            <button @click="removerTurma(idx)" :disabled="turmas.length === 1">Remover</button>
+            <button v-if="!editando" @click="salvarTurma(turmas[0])">Salvar</button>
+            <button v-else @click="atualizarTurma">Atualizar</button>
+            <button v-if="editando" @click="cancelarEdicao">Cancelar</button>
           </td>
         </tr>
       </tbody>
     </table>
-    <button @click="adicionarTurma">Adicionar Turma</button>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import axios from 'axios'
 
 const turmas = ref([
   { ano: '', nome: '' }
 ])
+const turmasSalvas = ref([])
+const anos = ref([])
+const editando = ref(false)
+const turmaEditandoId = ref(null)
 
-function adicionarTurma() {
-  turmas.value.push({ ano: '', nome: '' })
+async function salvarTurma(turma) {
+  try {
+    await axios.post('/api/turmas', turma)
+    alert('Turma salva com sucesso!')
+    await carregarTurmasSalvas()
+    turmas.value[0].ano = ''
+    turmas.value[0].nome = ''
+  } catch (e) {
+    alert('Erro ao salvar turma!')
+  }
 }
 
-function removerTurma(idx) {
-  if (turmas.value.length > 1) turmas.value.splice(idx, 1)
+function iniciarEdicao(turma) {
+  turmas.value[0].id = turma.id
+  turmas.value[0].ano = turma.idanos
+  turmas.value[0].nome = turma.nome
+  turmaEditandoId.value = turma.id
+  editando.value = true
 }
+
+async function atualizarTurma() {
+  try {
+    await axios.put(`/api/turmas/${turmaEditandoId.value}`, turmas.value[0])
+    alert('Turma atualizada com sucesso!')
+    await carregarTurmasSalvas()
+    turmas.value[0].ano = ''
+    turmas.value[0].nome = ''
+    editando.value = false
+    turmaEditandoId.value = null
+  } catch (e) {
+    alert('Erro ao atualizar turma!')
+  }
+}
+
+function cancelarEdicao() {
+  turmas.value[0].ano = ''
+  turmas.value[0].nome = ''
+  editando.value = false
+  turmaEditandoId.value = null
+}
+
+async function carregarTurmasSalvas() {
+  try {
+    const response = await axios.get('/api/turmas')
+    turmasSalvas.value = response.data
+  } catch (e) {
+    turmasSalvas.value = []
+  }
+}
+
+async function carregarAnos() {
+  try {
+    const response = await axios.get('/api/anos')
+    anos.value = response.data
+  } catch (e) {
+    anos.value = []
+  }
+}
+
+onMounted(() => {
+  carregarTurmasSalvas()
+  carregarAnos()
+})
 </script>
 
 <style scoped>

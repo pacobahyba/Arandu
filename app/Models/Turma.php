@@ -8,4 +8,5 @@ use Illuminate\Database\Eloquent\Model;
 class Turma extends Model
 {
     use HasFactory;
+    protected $fillable = ['id', 'ano', 'nome'];
 }

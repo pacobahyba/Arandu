@@ -4,11 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cadastro de Alunos</title>
-    @vite('resources/js/app.js')
 </head>
 <body class="antialiased">
-    <div id="app">
-        <example-component></example-component>
-    </div>
+    <div id="app"></div>
+    @vite('resources/js/app.js')
 </body>
 </html>
