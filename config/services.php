@@ -1,7 +1,6 @@
 <?php
 
 return [
-
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -31,4 +30,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'sophia_auth' => [
+        'url' => env('SOPHIA_AUTH_URL'),
+        'login' => env('SOPHIA_LOGIN'),
+        'senha' => env('SOPHIA_SENHA'),
+    ],
 ];

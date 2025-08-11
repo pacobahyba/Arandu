@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TurmaController;
 use App\Http\Controllers\AnoController;
 use App\Http\Controllers\AlunoController;
+use App\Http\Controllers\SophiaAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -141,3 +142,6 @@ Route::post('/objetivos', function(\Illuminate\Http\Request $request) {
         'periodo_objetivo' => $request->periodo_objetivo
     ]);
 });
+
+// Rota para autenticação Sophia
+Route::get('/token-sophia', [SophiaAuthController::class, 'autenticar']);

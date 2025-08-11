@@ -1,35 +1,40 @@
 <template>
   <div>
-    <h2>Turmas da professora Cecília Schubsky</h2>
-    <label for="materia-select">Matéria:</label>
-    <select id="materia-select" v-model="materiaSelecionada" @change="carregarTurmas">
-      <option value="">Selecione...</option>
-      <option v-for="materia in materias" :key="materia.id_materia" :value="materia.id_materia">
-        {{ materia.nome_materia }}
-      </option>
-    </select>
+    <h2>Turmas de Cecília Schubsky</h2>
+    <div style="margin-bottom: 1em;">
+      <label for="materia-select" class="avaliacao-label">Matéria:</label>
+      <select id="materia-select" class="avaliacao-select" v-model="materiaSelecionada" @change="carregarTurmas">
+        <option value="">Selecione...</option>
+        <option v-for="materia in materias" :key="materia.id_materia" :value="materia.id_materia">
+          {{ materia.nome_materia }}
+        </option>
+      </select>
+    </div>
 
-    <label v-if="materiaSelecionada" for="turma-select" style="margin-left: 1em;">Turma:</label>
-    <select v-if="materiaSelecionada" id="turma-select" v-model="turmaSelecionada">
-      <option value="">Selecione...</option>
-      <option v-for="turma in turmas" :key="turma.id_turma" :value="turma.id_turma">
-        {{ turma.nome_turma }}
-      </option>
-    </select>
+    <div style="margin-bottom: 1em;" v-if="materiaSelecionada">
+      <label for="turma-select" class="avaliacao-label">Turma:</label>
+      <select id="turma-select" class="avaliacao-select" v-model="turmaSelecionada">
+        <option value="">Selecione...</option>
+        <option v-for="turma in turmas" :key="turma.id_turma" :value="turma.id_turma">
+          {{ turma.nome_turma }}
+        </option>
+      </select>
+    </div>
 
-    <label v-if="turmaSelecionada" for="trimestre-select" style="margin-left: 1em;">Trimestre:</label>
-    <select
-      v-if="turmaSelecionada"
-      id="trimestre-select"
-      v-model="trimestreSelecionado"
-      style="margin-left: 0.5em;"
-      @change="carregarObjetivos"
-    >
-      <option value="">Selecione...</option>
-      <option value="1º Tri">1º Tri</option>
-      <option value="2º Tri">2º Tri</option>
-      <option value="3º Tri">3º Tri</option>
-    </select>
+    <div style="margin-bottom: 1em;" v-if="turmaSelecionada">
+      <label for="trimestre-select" class="avaliacao-label">Trimestre:</label>
+      <select
+        id="trimestre-select"
+        v-model="trimestreSelecionado"
+        @change="carregarObjetivos"
+        class="avaliacao-select"
+      >
+        <option value="">Selecione...</option>
+        <option value="1º Tri">1º Tri</option>
+        <option value="2º Tri">2º Tri</option>
+        <option value="3º Tri">3º Tri</option>
+      </select>
+    </div>
 
     <div v-if="turmaSelecionada && trimestreSelecionado" style="margin-top:2em;">
       <table border="1" cellpadding="5" style="background: #f5f5f5; width: 400px;">
@@ -152,6 +157,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 const materias = ref([])
 const materiaSelecionada = ref('')
@@ -183,6 +191,47 @@ async function carregarTurmas() {
   objetivosConceituais.value = []
   objetivosAtitudinais.value = []
   if (!materiaSelecionada.value) return
+
+  // Se a matéria selecionada for História, consome a API Sophia
+  const materiaSelecionadaNome = materias.value.find(m => m.id_materia === materiaSelecionada.value)?.nome_materia
+  if (materiaSelecionadaNome === 'História') {
+    try {
+      const response = await axios.get(
+        'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
+        {
+          headers: {
+            Token: auth.token
+          }
+        }
+      )
+      // Filtra turmas que possuem colaboradores com codigo 1092
+      //console.log(response.data)
+
+      /*response.data.forEach(turma => {
+        turma.professoresDisciplinas.forEach(pd => {
+          if(pd.colaboradores[0].codigo == 1092){
+            console.log('essa turma é da Cecília!')
+          }
+        })
+      })*/
+
+      turmas.value = response.data.filter(turma =>
+        Array.isArray(turma.professoresDisciplinas) &&
+        turma.professoresDisciplinas.some(pd =>
+          Array.isArray(pd.colaboradores) &&
+          pd.colaboradores.some(colab => colab.codigo === 1092)
+        )
+      ).map(turma => ({
+        id_turma: turma.codigo,
+        nome_turma: turma.nome
+      }))
+    } catch (e) {
+      turmas.value = []
+    }
+    return
+  }
+
+  // Caso contrário, mantém o comportamento antigo (consulta local/api interna)
   try {
     const response = await axios.get(`/api/turmas-professor?professor_id=1&materia_id=${materiaSelecionada.value}`)
     turmas.value = response.data
@@ -313,5 +362,6 @@ async function salvarNovoObjetivo() {
 
 onMounted(() => {
   carregarMaterias()
+  carregarTurmas()
 })
 </script>
