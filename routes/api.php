@@ -6,6 +6,7 @@ use App\Http\Controllers\TurmaController;
 use App\Http\Controllers\AnoController;
 use App\Http\Controllers\AlunoController;
 use App\Http\Controllers\SophiaAuthController;
+use App\Http\Controllers\ObjetivoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -145,3 +146,6 @@ Route::post('/objetivos', function(\Illuminate\Http\Request $request) {
 
 // Rota para autenticação Sophia
 Route::get('/token-sophia', [SophiaAuthController::class, 'autenticar']);
+
+// Rota para deletar objetivos
+Route::delete('/objetivos/{id}', [ObjetivoController::class, 'destroy']);

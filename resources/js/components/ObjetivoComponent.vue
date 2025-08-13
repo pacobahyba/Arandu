@@ -1,7 +1,21 @@
 <template>
   <div>
-    <h2>Turmas de Cecília Schubsky</h2>
-    <div style="margin-bottom: 1em;">
+    <!-- Combo Professor para Administrador -->
+    <div v-if="perfilLogado === 'Administrador'" style="margin-bottom: 1em;">
+      <label for="professor-select" class="avaliacao-label">Professor:</label>
+      <select id="professor-select" class="avaliacao-select" v-model="professorSelecionado" @change="carregarMaterias">
+        <option value="">Selecione...</option>
+        <option v-for="prof in professores" :key="prof.id_professor" :value="prof.id_professor">
+          {{ prof.nome_professor }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Frase só aparece se for Professor -->
+    <h2 v-if="perfilLogado == 'Professor'">Turmas de Cecília Schubsky</h2>
+
+    <!-- Combo Matéria só aparece se não for Administrador OU se for Administrador/Professor e já escolheu um professor -->
+    <div style="margin-bottom: 1em;" v-if="(perfilLogado !== 'Administrador' && perfilLogado !== 'Professor') || professorSelecionado">
       <label for="materia-select" class="avaliacao-label">Matéria:</label>
       <select id="materia-select" class="avaliacao-select" v-model="materiaSelecionada" @change="carregarTurmas">
         <option value="">Selecione...</option>
@@ -11,6 +25,7 @@
       </select>
     </div>
 
+    <!-- Combo Turma: agora aparece para qualquer perfil assim que uma matéria for escolhida -->
     <div style="margin-bottom: 1em;" v-if="materiaSelecionada">
       <label for="turma-select" class="avaliacao-label">Turma:</label>
       <select id="turma-select" class="avaliacao-select" v-model="turmaSelecionada">
@@ -56,6 +71,7 @@
                 min="0"
                 max="100"
                 style="width: 60px;"
+                :disabled="perfilLogado === 'Administrador'"
                 @input="atualizarPorcentagem('conceituais')"
                 @blur="salvarPorcentagem"
               /> %
@@ -71,6 +87,7 @@
                 min="0"
                 max="100"
                 style="width: 60px;"
+                :disabled="perfilLogado === 'Administrador'"
                 @input="atualizarPorcentagem('atitudinais')"
                 @blur="salvarPorcentagem"
               /> %
@@ -80,21 +97,22 @@
       </table>
 
       <div v-if="objetivosConceituais.length" style="margin-top:2em;">
-        <table border="1" cellpadding="5" style="background: #ffffcc;">
+        <table class="objetivos" border="1" cellpadding="5" style="background: #ffffcc;">
           <thead>
             <tr>
               <th>Objetivos Conceituais</th>
-              <th>Editar</th>
+              <th v-if="perfilLogado !== 'Administrador'" width="30%">Editar</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="objetivo in objetivosConceituais" :key="objetivo.id_objetivo">
               <td>
                 <span v-if="!objetivo.editando">{{ objetivo.nome_objetivo }}</span>
-                <input v-else v-model="objetivo.novoValor" type="text" style="width: 350px;" />
+                <input v-else v-model="objetivo.novoValor" type="text" style="width: 90%;" />
               </td>
-              <td>
+              <td v-if="perfilLogado !== 'Administrador'">
                 <button v-if="!objetivo.editando" @click="iniciarEdicao(objetivo)">Editar</button>
+                <button v-if="!objetivo.editando && perfilLogado === 'Professor'" @click="removerObjetivo(objetivo)" class="bt-remover">Remover</button>
                 <span v-else>
                   <button @click="salvarEdicao(objetivo)">Salvar</button>
                   <button @click="cancelarEdicao(objetivo)">Cancelar</button>
@@ -106,21 +124,22 @@
       </div>
 
       <div v-if="objetivosAtitudinais.length" style="margin-top:2em;">
-        <table border="1" cellpadding="5" style="background: #e6ffe6;">
+        <table class="objetivos" border="1" cellpadding="5" style="background: #e6ffe6;">
           <thead>
             <tr>
               <th>Objetivos Atitudinais e Procedimentais</th>
-              <th>Editar</th>
+              <th v-if="perfilLogado !== 'Administrador'" width="30%">Editar</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="objetivo in objetivosAtitudinais" :key="objetivo.id_objetivo">
               <td>
                 <span v-if="!objetivo.editando">{{ objetivo.nome_objetivo }}</span>
-                <input v-else v-model="objetivo.novoValor" type="text" style="width: 350px;" />
+                <input v-else v-model="objetivo.novoValor" type="text" style="width: 90%;" />
               </td>
-              <td>
+              <td v-if="perfilLogado !== 'Administrador'">
                 <button v-if="!objetivo.editando" @click="iniciarEdicao(objetivo)">Editar</button>
+                <button v-if="!objetivo.editando && perfilLogado === 'Professor'" @click="removerObjetivo(objetivo)" class="bt-remover">Remover</button>
                 <span v-else>
                   <button @click="salvarEdicao(objetivo)">Salvar</button>
                   <button @click="cancelarEdicao(objetivo)">Cancelar</button>
@@ -131,7 +150,7 @@
         </table>
       </div>
 
-      <div style="margin-top: 2em;">
+      <div v-if="perfilLogado !== 'Administrador'" style="margin-top: 2em;">
         <h3>Inserir objetivo</h3>
         <table border="1" cellpadding="8" style="background: #f9f9f9; min-width: 400px;">
           <tr>
@@ -173,8 +192,63 @@ const porcentagemConceituais = ref(50)
 const porcentagemAtitudinais = ref(50)
 const novoObjetivoTexto = ref('')
 const novoObjetivoTipo = ref('C')
+const professores = ref([])
+const professorSelecionado = ref('')
+
+// Recupera o perfil do usuário logado
+const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
 
 async function carregarMaterias() {
+  materias.value = []
+  materiaSelecionada.value = ''
+  turmas.value = []
+  turmaSelecionada.value = ''
+  trimestreSelecionado.value = ''
+  objetivos.value = []
+  objetivosConceituais.value = []
+  objetivosAtitudinais.value = []
+
+  // Para Administrador ou Professor, busca disciplinas do professor selecionado
+  if (
+    (perfilLogado.value === 'Administrador' && professorSelecionado.value) ||
+    (perfilLogado.value === 'Professor' && professorSelecionado.value)
+  ) {
+    try {
+      const response = await axios.get(
+        'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
+        {
+          headers: {
+            Token: auth.token
+          }
+        }
+      )
+      // Extrai disciplinas do professor selecionado
+      const disciplinasSet = new Set()
+      response.data.forEach(turma => {
+        if (Array.isArray(turma.professoresDisciplinas)) {
+          turma.professoresDisciplinas.forEach(pd => {
+            if (
+              Array.isArray(pd.colaboradores) &&
+              pd.colaboradores.some(colab => colab.codigo == professorSelecionado.value)
+            ) {
+              if (pd.disciplina && pd.disciplina.codigo && pd.disciplina.nome) {
+                disciplinasSet.add(JSON.stringify({
+                  id_materia: pd.disciplina.codigo,
+                  nome_materia: pd.disciplina.nome
+                }))
+              }
+            }
+          })
+        }
+      })
+      materias.value = Array.from(disciplinasSet).map(str => JSON.parse(str))
+    } catch (e) {
+      materias.value = []
+    }
+    return
+  }
+
+  // Para outros perfis, mantém o comportamento antigo se necessário
   try {
     const response = await axios.get('/api/materias-professor?id_professor=1')
     materias.value = response.data
@@ -192,9 +266,11 @@ async function carregarTurmas() {
   objetivosAtitudinais.value = []
   if (!materiaSelecionada.value) return
 
-  // Se a matéria selecionada for História, consome a API Sophia
-  const materiaSelecionadaNome = materias.value.find(m => m.id_materia === materiaSelecionada.value)?.nome_materia
-  if (materiaSelecionadaNome === 'História') {
+  // Para Administrador ou Professor, filtra turmas pelo professor e matéria selecionados
+  if (
+    (perfilLogado.value === 'Administrador' && professorSelecionado.value && materiaSelecionada.value) ||
+    (perfilLogado.value === 'Professor' && professorSelecionado.value && materiaSelecionada.value)
+  ) {
     try {
       const response = await axios.get(
         'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
@@ -204,22 +280,13 @@ async function carregarTurmas() {
           }
         }
       )
-      // Filtra turmas que possuem colaboradores com codigo 1092
-      //console.log(response.data)
-
-      /*response.data.forEach(turma => {
-        turma.professoresDisciplinas.forEach(pd => {
-          if(pd.colaboradores[0].codigo == 1092){
-            console.log('essa turma é da Cecília!')
-          }
-        })
-      })*/
-
       turmas.value = response.data.filter(turma =>
         Array.isArray(turma.professoresDisciplinas) &&
         turma.professoresDisciplinas.some(pd =>
+          pd.disciplina &&
+          pd.disciplina.codigo == materiaSelecionada.value &&
           Array.isArray(pd.colaboradores) &&
-          pd.colaboradores.some(colab => colab.codigo === 1092)
+          pd.colaboradores.some(colab => colab.codigo == professorSelecionado.value)
         )
       ).map(turma => ({
         id_turma: turma.codigo,
@@ -231,7 +298,7 @@ async function carregarTurmas() {
     return
   }
 
-  // Caso contrário, mantém o comportamento antigo (consulta local/api interna)
+  // Para outros perfis, mantém o comportamento antigo se necessário
   try {
     const response = await axios.get(`/api/turmas-professor?professor_id=1&materia_id=${materiaSelecionada.value}`)
     turmas.value = response.data
@@ -360,8 +427,54 @@ async function salvarNovoObjetivo() {
   }
 }
 
+async function removerObjetivo(objetivo) {
+  if (!confirm('Deseja realmente remover este objetivo?')) return
+  try {
+    await axios.delete(`/api/objetivos/${objetivo.id_objetivo}`)
+    objetivosConceituais.value = objetivosConceituais.value.filter(o => o.id_objetivo !== objetivo.id_objetivo)
+    objetivosAtitudinais.value = objetivosAtitudinais.value.filter(o => o.id_objetivo !== objetivo.id_objetivo)
+    // Se quiser remover também de objetivos.value (caso use em outros lugares):
+    objetivos.value = objetivos.value.filter(o => o.id_objetivo !== objetivo.id_objetivo)
+  } catch (e) {
+    alert('Erro ao remover objetivo.')
+  }
+}
+
+async function carregarProfessores() {
+  try {
+    const response = await axios.get(
+      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Colaboradores?Unidades=2',
+      {
+        headers: {
+          Token: auth.token
+        }
+      }
+    )
+    professores.value = response.data
+      .filter(prof => prof.leciona === true)
+      .map(prof => ({
+        id_professor: prof.codigo,
+        nome_professor: prof.nome
+      }))
+  } catch (e) {
+    professores.value = []
+  }
+}
+
 onMounted(() => {
-  carregarMaterias()
+  carregarProfessores().then(() => {
+    if (perfilLogado.value === 'Professor') {
+      // Procura Cecília na lista de professores e seleciona
+      const cecilia = professores.value.find(p => p.nome_professor === 'Cecília de Miranda Schubsky')
+      if (cecilia) {
+        professorSelecionado.value = cecilia.id_professor
+        carregarMaterias()
+      }
+    }
+  })
+  if (perfilLogado.value !== 'Professor') {
+    carregarMaterias()
+  }
   carregarTurmas()
 })
 </script>

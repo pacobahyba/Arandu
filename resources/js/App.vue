@@ -22,6 +22,9 @@
         </button>
         <button @click="logout" class="logout-button">Sair</button>
       </nav>
+      <div style="margin-bottom: 1em; font-weight: bold; color: #4f6c33;">
+        Perfil logado: {{ perfilLogado }}
+      </div>
       <div v-if="paginaAtual === 'inicio'">
         <div
           style="
@@ -48,13 +51,13 @@
       </div>
     </template>
     <template v-else>
-      <LoginComponent @login-sucesso="autenticado = true" />
+      <LoginComponent @login-sucesso="onLoginSucesso" />
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
 import AlunoComponent from './components/AlunoComponent.vue'
 import TurmaComponent from './components/TurmaComponent.vue'
@@ -62,21 +65,48 @@ import MateriaComponent from './components/MateriaComponent.vue'
 import AvaliacaoComponent from './components/AvaliacaoComponent.vue'
 import ObjetivoComponent from './components/ObjetivoComponent.vue'
 import LoginComponent from './components/LoginComponent.vue'
+import axios from 'axios'
 
 const auth = useAuthStore()
 
-// Inicializa a página atual com o valor salvo ou 'inicio'
 const paginaAtual = ref(localStorage.getItem('paginaAtual') || 'inicio')
 const autenticado = computed(() => !!auth.token)
+
+const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
 
 // Salva a página sempre que mudar
 watch(paginaAtual, (novaPagina) => {
   localStorage.setItem('paginaAtual', novaPagina)
 })
 
+// Verificação do token ao montar o App
+onMounted(async () => {
+  if (auth.token) {
+    try {
+      // Tenta acessar um endpoint protegido para validar o token
+      await axios.get('https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Unidades=2', {
+        headers: { Token: auth.token }
+      })
+      // Se não der erro, segue normalmente
+    } catch (e) {
+      // Se der erro (ex: 401), faz logout e volta para login
+      logout()
+    }
+  }
+  // Atualiza o perfil ao recarregar
+  perfilLogado.value = sessionStorage.getItem('perfil') || 'Não definido'
+})
+
 function logout() {
   auth.logout()
   localStorage.removeItem('paginaAtual')
-  window.location.reload() // ou, se preferir, defina autenticado = false
+  sessionStorage.removeItem('perfil')
+  window.location.reload()
+}
+
+// Atualize ao receber o evento de login-sucesso
+function onLoginSucesso() {
+  autenticado.value = true
+  perfilLogado.value = sessionStorage.getItem('perfil') || 'Não definido'
 }
 </script>

@@ -26,7 +26,6 @@
 import { ref } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
-import { defineStore } from 'pinia'
 
 const usuario = ref('')
 const senha = ref('')
@@ -37,12 +36,19 @@ const auth = useAuthStore()
 
 async function fazerLogin() {
   erro.value = ''
-  if (usuario.value === 'paco' && senha.value === '123') {
-    // Obtenha o token do backend
+  if (usuario.value === 'admin' && senha.value === '123') {
+    // Perfil administrador
+    sessionStorage.setItem('perfil', 'Administrador')
     const resp = await axios.get('/api/token-sophia')
-    console.log(resp.data)
     const token = resp.data.token
-    auth.setToken(token) // Isso já salva no localStorage
+    auth.setToken(token)
+    emit('login-sucesso')
+  } else if (usuario.value === 'professor' && senha.value === '123') {
+    // Perfil comum
+    sessionStorage.setItem('perfil', 'Professor')
+    const resp = await axios.get('/api/token-sophia')
+    const token = resp.data.token
+    auth.setToken(token)
     emit('login-sucesso')
   } else {
     erro.value = 'Usuário ou senha inválidos.'
@@ -95,3 +101,5 @@ async function fazerLogin() {
   margin-top: 0.5em;
 }
 </style>
+
+<LoginComponent @login-sucesso="onLoginSucesso" v-if="!autenticado" />

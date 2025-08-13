@@ -3,6 +3,7 @@
     <div class="left-panel">
       <h2>Ficha de avaliação</h2>
       <label for="periodo-select" class="avaliacao-label">Período:</label>
+      <!-- NÃO bloqueie os selects -->
       <select id="periodo-select" v-model="periodoSelecionado" class="avaliacao-select">
         <option value="">Selecione...</option>
         <option value="1º Tri">1º Tri</option>
@@ -15,7 +16,7 @@
       <select id="materia-select" v-model="materiaSelecionada" @change="carregarTurmas" class="avaliacao-select">
         <option value="">Selecione...</option>
         <option v-for="materia in materias" :key="materia.id_materia" :value="materia.id_materia">
-          {{ materia.nome_materia }} ({{ materia.abreviacao_materia }})
+          {{ materia.nome_materia }}
         </option>
       </select>
       <br /><br />
@@ -99,6 +100,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
                     @blur="salvarNotaEst(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <!-- Prof -->
@@ -111,6 +113,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'prof'); atualizarCP(objetivo)"
                     @blur="salvarNotaProf(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>
@@ -122,6 +125,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'cp'); atualizarCF(objetivo)"
                     @blur="salvarNotaCP(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>
@@ -133,6 +137,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
                     @blur="salvarNotaRec(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>{{ Math.max(Number(objetivo.cp) || 0, Number(objetivo.rec) || 0) }}</td>
@@ -165,6 +170,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
                     @blur="salvarNotaEst(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <!-- Prof -->
@@ -177,6 +183,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'prof'); atualizarCP(objetivo)"
                     @blur="salvarNotaProf(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>
@@ -188,6 +195,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'cp'); atualizarCF(objetivo)"
                     @blur="salvarNotaCP(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>
@@ -199,6 +207,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
                     @blur="salvarNotaRec(objetivo)"
+                    :disabled="perfilLogado === 'Administrador'"
                   />
                 </td>
                 <td>{{ Math.max(Number(objetivo.cp) || 0, Number(objetivo.rec) || 0) }}</td>
@@ -276,10 +285,8 @@ import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 
-const materias = ref([
-  { id_materia: 1, nome_materia: 'História', abreviacao_materia: 'HIST' }
-])
-const materiaSelecionada = ref('')
+const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
+
 const turmas = ref([])
 const turmaSelecionada = ref('')
 const alunos = ref([])
@@ -378,26 +385,38 @@ async function carregarTurmas() {
   porcentagemConceituais.value = null
   porcentagemAtitudinais.value = null
 
-  // Sempre consome a API Sophia e filtra pelas turmas da Cecília (colaborador 1092)
+  if (!materiaSelecionada.value) return
+
   try {
     const response = await axios.get(
-      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Unidades=2',
+      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
       {
         headers: {
           Token: auth.token
         }
       }
     )
-    turmas.value = response.data.filter(turma =>
-      Array.isArray(turma.professoresDisciplinas) &&
-      turma.professoresDisciplinas.some(pd =>
-        Array.isArray(pd.colaboradores) &&
-        pd.colaboradores.some(colab => colab.codigo === 1092)
+    // Para o perfil Professor, filtra pelo código 1092
+    const codigoProfessor = perfilLogado.value === 'Professor' ? 1092 : null
+
+    turmas.value = response.data
+      .filter(turma =>
+        Array.isArray(turma.professoresDisciplinas) &&
+        turma.professoresDisciplinas.some(pd =>
+          pd.disciplina &&
+          pd.disciplina.codigo == materiaSelecionada.value &&
+          (
+            // Se for Professor, exige colaborador 1092
+            (perfilLogado.value === 'Professor' && Array.isArray(pd.colaboradores) && pd.colaboradores.some(colab => colab.codigo == 1092))
+            // Para outros perfis, não filtra por colaborador
+            || (perfilLogado.value !== 'Professor')
+          )
+        )
       )
-    ).map(turma => ({
-      id_turma: turma.codigo,
-      nome_turma: turma.nome
-    }))
+      .map(turma => ({
+        id_turma: turma.codigo,
+        nome_turma: turma.nome
+      }))
   } catch (e) {
     turmas.value = []
   }
@@ -562,5 +581,52 @@ watchEffect(async () => {
       objetivos.value = []
     }
   }
+})
+
+const materias = ref([])
+const materiaSelecionada = ref('')
+
+// Carregar todas as matérias da API Sophia
+async function carregarMaterias() {
+  try {
+    const response = await axios.get(
+      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
+      {
+        headers: {
+          Token: auth.token
+        }
+      }
+    )
+    const disciplinasSet = new Set()
+    response.data.forEach(turma => {
+      if (Array.isArray(turma.professoresDisciplinas)) {
+        turma.professoresDisciplinas.forEach(pd => {
+          if (pd.disciplina && pd.disciplina.codigo && pd.disciplina.nome) {
+            disciplinasSet.add(JSON.stringify({
+              id_materia: pd.disciplina.codigo,
+              nome_materia: pd.disciplina.nome
+            }))
+          }
+        })
+      }
+    })
+    let todasMaterias = Array.from(disciplinasSet)
+      .map(str => JSON.parse(str))
+      .sort((a, b) => a.nome_materia.localeCompare(b.nome_materia))
+
+    // Para o perfil Professor, mostra apenas História (id_materia: 13)
+    if (perfilLogado.value === 'Professor') {
+      materias.value = todasMaterias.filter(m => m.id_materia == 13)
+    } else {
+      materias.value = todasMaterias
+    }
+  } catch (e) {
+    materias.value = []
+  }
+}
+
+// Chame carregarMaterias ao montar o componente
+onMounted(() => {
+  carregarMaterias()
 })
 </script>
