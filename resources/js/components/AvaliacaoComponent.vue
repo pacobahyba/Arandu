@@ -4,7 +4,7 @@
       <h2>Ficha de avaliação</h2>
       <label for="periodo-select" class="avaliacao-label">Período:</label>
       <!-- NÃO bloqueie os selects -->
-      <select id="periodo-select" v-model="periodoSelecionado" class="avaliacao-select">
+      <select id="periodo-select" v-model="periodoSelecionado" class="avaliacao-select" @change="carregarMaterias">
         <option value="">Selecione...</option>
         <option value="1º Tri">1º Tri</option>
         <option value="2º Tri">2º Tri</option>
@@ -82,7 +82,6 @@
                 <th>Objetivos Conceituais</th>
                 <th>Est</th>
                 <th>Prof</th>
-                <th>CP</th>
                 <th>Rec</th>
                 <th>CF</th>
               </tr>
@@ -100,7 +99,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
                     @blur="salvarNotaEst(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' ? true : perfilLogado === 'Aluno' ? false : false"
                   />
                 </td>
                 <!-- Prof -->
@@ -111,23 +110,12 @@
                     :max="10"
                     min="0"
                     style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof'); atualizarCP(objetivo)"
+                    @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
                     @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
                   />
                 </td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.cp"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'cp'); atualizarCF(objetivo)"
-                    @blur="salvarNotaCP(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
-                  />
-                </td>
+                <!-- Remova o <td> referente a CP -->
                 <td>
                   <input
                     type="number"
@@ -137,10 +125,21 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
                     @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
                   />
                 </td>
-                <td>{{ Math.max(Number(objetivo.cp) || 0, Number(objetivo.rec) || 0) }}</td>
+                <td>
+                  <input
+                    type="number"
+                    v-model="objetivo.cf"
+                    :max="10"
+                    min="0"
+                    style="width: 50px;"
+                    @input="limitarNota(objetivo, 'cf')"
+                    @blur="salvarNotaCF(objetivo)"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
@@ -152,7 +151,6 @@
                 <th>Objetivos Atitudinais e Procedimentais</th>
                 <th>Est</th>
                 <th>Prof</th>
-                <th>CP</th>
                 <th>Rec</th>
                 <th>CF</th>
               </tr>
@@ -170,7 +168,7 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
                     @blur="salvarNotaEst(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' ? true : perfilLogado === 'Aluno' ? false : false"
                   />
                 </td>
                 <!-- Prof -->
@@ -181,23 +179,12 @@
                     :max="10"
                     min="0"
                     style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof'); atualizarCP(objetivo)"
+                    @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
                     @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
                   />
                 </td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.cp"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'cp'); atualizarCF(objetivo)"
-                    @blur="salvarNotaCP(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
-                  />
-                </td>
+                <!-- Remova o <td> referente a CP -->
                 <td>
                   <input
                     type="number"
@@ -207,10 +194,21 @@
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
                     @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrador'"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
                   />
                 </td>
-                <td>{{ Math.max(Number(objetivo.cp) || 0, Number(objetivo.rec) || 0) }}</td>
+                <td>
+                  <input
+                    type="number"
+                    v-model="objetivo.cf"
+                    :max="10"
+                    min="0"
+                    style="width: 50px;"
+                    @input="limitarNota(objetivo, 'cf')"
+                    @blur="salvarNotaCF(objetivo)"
+                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
@@ -230,19 +228,17 @@
       >
         <table border="1" cellpadding="8" style="background: #dde3f0; min-width: 260px; text-align: center;">
           <tr style="background: #d3daea;">
-            <td colspan="5" style="font-weight: bold;">NOTAS</td>
+            <td colspan="4" style="font-weight: bold;">NOTAS</td>
           </tr>
           <tr style="background: #f5f7fa;">
             <th>Est</th>
             <th>Prof</th>
-            <th>CP</th>
             <th>Rec</th>
             <th>CF</th>
           </tr>
           <tr id="linha1">
             <td id="media-conceituais">{{ mediaConceituais }}</td>
             <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
-            <td id="media-cp-conceituais">{{ mediaCPConceituais }}</td>
             <td>C</td>
             <td id="media-cf-conceituais">
               {{
@@ -258,14 +254,12 @@
           <tr id="linha2">
             <td id="media-atitudinais">{{ mediaAtitudinais }}</td>
             <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
-            <td id="media-cp-atitudinais">{{ mediaCPAtitudinais }}</td>
             <td>A</td>
             <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
           </tr>
           <tr id="linha3">
             <td id="total-medias">{{ totalMedias }}</td>
             <td id="total-prof-medias">{{ totalProfMedias }}</td>
-            <td id="total-cp-medias">{{ totalCPMedias }}</td>
             <td>T</td>
             <td id="total-cf-medias">{{ totalCFMedias }}</td>
           </tr>
@@ -396,27 +390,30 @@ async function carregarTurmas() {
         }
       }
     )
-    // Para o perfil Professor, filtra pelo código 1092
-    const codigoProfessor = perfilLogado.value === 'Professor' ? 1092 : null
-
-    turmas.value = response.data
+    let turmasFiltradas = response.data
       .filter(turma =>
         Array.isArray(turma.professoresDisciplinas) &&
         turma.professoresDisciplinas.some(pd =>
           pd.disciplina &&
-          pd.disciplina.codigo == materiaSelecionada.value &&
-          (
-            // Se for Professor, exige colaborador 1092
-            (perfilLogado.value === 'Professor' && Array.isArray(pd.colaboradores) && pd.colaboradores.some(colab => colab.codigo == 1092))
-            // Para outros perfis, não filtra por colaborador
-            || (perfilLogado.value !== 'Professor')
-          )
+          pd.disciplina.codigo == materiaSelecionada.value
         )
       )
       .map(turma => ({
         id_turma: turma.codigo,
         nome_turma: turma.nome
       }))
+
+    // Se for perfil Aluno, filtra apenas a turma da sessão
+    if (perfilLogado.value === 'Aluno') {
+      const turmaId = sessionStorage.getItem('turma_id')
+      turmas.value = turmasFiltradas.filter(t => String(t.id_turma) === String(turmaId))
+      // Já seleciona a turma automaticamente
+      if (turmas.value.length > 0) {
+        turmaSelecionada.value = turmas.value[0].id_turma
+      }
+    } else {
+      turmas.value = turmasFiltradas
+    }
   } catch (e) {
     turmas.value = []
   }
@@ -435,13 +432,24 @@ async function carregarAlunos() {
         }
       }
     )
-    // Filtra alunos da turma selecionada
-    alunos.value = response.data.filter(aluno =>
-      aluno.turmas && aluno.turmas.some(t => t.codigo === turmaSelecionada.value)
+    let alunosFiltrados = response.data.filter(aluno =>
+      Array.isArray(aluno.turmas) &&
+      aluno.turmas.some(t => String(t.codigo) === String(turmaSelecionada.value))
     ).map(aluno => ({
       id_aluno: aluno.codigo,
       nome_aluno: aluno.nome
     }))
+
+    // Se for perfil Aluno, filtra apenas o aluno da sessão
+    if (perfilLogado.value === 'Aluno') {
+      const alunoId = sessionStorage.getItem('aluno_id')
+      alunos.value = alunosFiltrados.filter(a => String(a.id_aluno) === String(alunoId))
+      if (alunos.value.length > 0) {
+        alunoSelecionado.value = alunos.value[0].id_aluno
+      }
+    } else {
+      alunos.value = alunosFiltrados
+    }
   } catch (e) {
     alunos.value = []
   }
@@ -542,6 +550,20 @@ async function salvarNotaCP(objetivo) {
   }
 }
 
+async function salvarNotaCF(objetivo) {
+  try {
+    await axios.post('/api/notas', {
+      id_objetivo: objetivo.id_objetivo,
+      nota: objetivo.cf,
+      tipo_nota: 'CF',
+      id_aluno: alunoSelecionado.value,
+      periodo: periodoSelecionado.value
+    })
+  } catch (e) {
+    alert('Erro ao salvar nota CF!')
+  }
+}
+
 watchEffect(async () => {
   // Carrega objetivos e notas quando mostrarTabela for true
   if (
@@ -588,6 +610,13 @@ const materiaSelecionada = ref('')
 
 // Carregar todas as matérias da API Sophia
 async function carregarMaterias() {
+  materias.value = []
+  materiaSelecionada.value = ''
+  turmas.value = []
+  turmaSelecionada.value = ''
+  objetivos.value = []
+  mostrarTabela.value = false
+
   try {
     const response = await axios.get(
       'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
@@ -597,29 +626,22 @@ async function carregarMaterias() {
         }
       }
     )
+    // Filtra apenas a turma Krahô Kanela (codigo 1601)
+    const turmaKraho = response.data.find(turma => turma.codigo == 1601)
     const disciplinasSet = new Set()
-    response.data.forEach(turma => {
-      if (Array.isArray(turma.professoresDisciplinas)) {
-        turma.professoresDisciplinas.forEach(pd => {
-          if (pd.disciplina && pd.disciplina.codigo && pd.disciplina.nome) {
-            disciplinasSet.add(JSON.stringify({
-              id_materia: pd.disciplina.codigo,
-              nome_materia: pd.disciplina.nome
-            }))
-          }
-        })
-      }
-    })
-    let todasMaterias = Array.from(disciplinasSet)
+    if (turmaKraho && Array.isArray(turmaKraho.professoresDisciplinas)) {
+      turmaKraho.professoresDisciplinas.forEach(pd => {
+        if (pd.disciplina && pd.disciplina.codigo && pd.disciplina.nome) {
+          disciplinasSet.add(JSON.stringify({
+            id_materia: pd.disciplina.codigo,
+            nome_materia: pd.disciplina.nome
+          }))
+        }
+      })
+    }
+    materias.value = Array.from(disciplinasSet)
       .map(str => JSON.parse(str))
       .sort((a, b) => a.nome_materia.localeCompare(b.nome_materia))
-
-    // Para o perfil Professor, mostra apenas História (id_materia: 13)
-    if (perfilLogado.value === 'Professor') {
-      materias.value = todasMaterias.filter(m => m.id_materia == 13)
-    } else {
-      materias.value = todasMaterias
-    }
   } catch (e) {
     materias.value = []
   }

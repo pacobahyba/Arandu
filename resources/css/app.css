@@ -113,18 +113,17 @@ button.ativo {
 }
 
 .central-container {
-  width: 82vw;
+  width: 50vw;
   min-height: 100vh;
-  margin: 0 auto;
+  /*margin: 0 auto;*/
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: stretch;
   box-sizing: border-box;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 0 !important;
   box-shadow: 0 4px 24px #0002;
-  padding: 2em 2em 2em 2em;
 }
 
 #notas-panel {
@@ -182,4 +181,10 @@ button.ativo {
     padding: 1em;
     border-radius: 0;
   }
+}
+
+body, #app {
+  min-height: 100vh;
+  min-width: 100vw;
+  background: url('/public/images/Depositphotos_430783178_XL_editado.jpg') center center/cover no-repeat fixed;
 }

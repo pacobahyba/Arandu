@@ -7,6 +7,7 @@ use App\Http\Controllers\AnoController;
 use App\Http\Controllers\AlunoController;
 use App\Http\Controllers\SophiaAuthController;
 use App\Http\Controllers\ObjetivoController;
+use App\Http\Controllers\Auth\MagicLinkController;
 
 /*
 |--------------------------------------------------------------------------
@@ -149,3 +150,9 @@ Route::get('/token-sophia', [SophiaAuthController::class, 'autenticar']);
 
 // Rota para deletar objetivos
 Route::delete('/objetivos/{id}', [ObjetivoController::class, 'destroy']);
+
+// Rota para envio de link mágico
+Route::post('/auth/send-magic-link', [MagicLinkController::class, 'send']);
+
+// Rota para verificação de OTP
+Route::post('/auth/verify-otp', [MagicLinkController::class, 'verify']);

@@ -1,5 +1,5 @@
 <template>
-  <div class="central-container">
+  <div id="container-geral" class="central-container">
     <template v-if="autenticado">
       <nav style="margin-bottom: 2em;">
         <button
@@ -9,6 +9,7 @@
           Início
         </button>
         <button
+          v-if="perfilLogado !== 'Aluno'"
           :class="{ ativo: paginaAtual === 'objetivos' }"
           @click="paginaAtual = 'objetivos'"
         >

@@ -450,12 +450,14 @@ async function carregarProfessores() {
         }
       }
     )
+    console.log(professores)
     professores.value = response.data
-      .filter(prof => prof.leciona === true)
+      .filter(prof => prof.leciona === true || prof.leciona === 'true')
       .map(prof => ({
         id_professor: prof.codigo,
         nome_professor: prof.nome
       }))
+      
   } catch (e) {
     professores.value = []
   }
