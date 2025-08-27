@@ -21,28 +21,36 @@
       </select>
       <br /><br />
 
-      <label for="turma-select" class="avaliacao-label">Turma:</label>
-      <select id="turma-select" v-model="turmaSelecionada" :disabled="!materiaSelecionada" @change="carregarAlunos" class="avaliacao-select">
-        <option value="">Selecione...</option>
-        <option v-for="turma in turmas" :key="turma.id_turma" :value="turma.id_turma">
-          {{ turma.nome_turma }}
-        </option>
-      </select>
-      <br /><br />
+      <!-- Modifique a parte do select de turma -->
+      <template v-if="perfilLogado !== 'Aluno'">
+        <label for="turma-select" class="avaliacao-label">Turma:</label>
+        <select id="turma-select" v-model="turmaSelecionada" :disabled="!materiaSelecionada" class="avaliacao-select" @change="carregarAlunos">
+          <option value="">Selecione...</option>
+          <option v-for="turma in turmas" :key="turma.id_turma" :value="turma.id_turma">
+            {{ turma.nome_turma }}
+          </option>
+        </select>
+        <br /><br />
 
-      <label for="aluno-select" class="avaliacao-label">Aluno:</label>
-      <select id="aluno-select" v-model="alunoSelecionado" :disabled="!turmaSelecionada" class="avaliacao-select">
-        <option value="">Selecione...</option>
-        <option v-for="aluno in alunos" :key="aluno.id_aluno" :value="aluno.id_aluno">
-          {{ aluno.nome_aluno }}
-        </option>
-      </select>
-      <br /><br />
+        <label for="aluno-select" class="avaliacao-label">Aluno:</label>
+        <select
+          id="aluno-select"
+          v-model="alunoSelecionado"
+          :disabled="!turmaSelecionada"
+          class="avaliacao-select"
+        >
+          <option value="">Selecione...</option>
+          <option v-for="aluno in alunos" :key="aluno.id_aluno" :value="aluno.id_aluno">
+            {{ aluno.nome_aluno }}
+          </option>
+        </select>
+        <br /><br />
+      </template>
 
       <!-- Botão Avaliar -->
       <button
         :disabled="!todasSelecionadas"
-        @click="mostrarTabela = true"
+        @click="aoAvaliar"
         style="padding: 0.7em 2em; font-size: 1em; font-weight: bold;"
       >
         Avaliar
@@ -73,7 +81,12 @@
 
       <!-- Tabela de objetivos separada por tipo OU mensagem de vazio -->
       <div v-if="mostrarTabela" style="margin-top:2em;">
-        <template v-if="objetivos.length">
+        <template v-if="carregandoObjetivos">
+          <div style="font-size:1.2em; color:#73331d; font-weight:bold; margin-top:2em; display:flex; align-items:center; gap:0.5em;">
+            <span class="spinner"></span> Carregando objetivos...
+          </div>
+        </template>
+        <template v-else-if="objetivos.length">
           <!-- Objetivos Conceituais -->
           <table v-if="objetivos.filter(o => o.tipo_objetivo === 'C').length" border="1" cellpadding="5" style="background: #ffffcc; margin-bottom:2em;">
             <thead>
@@ -220,7 +233,7 @@
         </template>
       </div>
     </div>
-    <div class="right-panel">
+    <div class="right-panel" v-if="mostrarTabela">
       <!-- Painel de notas, porcentagens, nota final -->
       <div
         id="notas-panel"
@@ -281,6 +294,8 @@ const auth = useAuthStore()
 
 const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
 
+const materias = ref([])
+const materiaSelecionada = ref('')
 const turmas = ref([])
 const turmaSelecionada = ref('')
 const alunos = ref([])
@@ -290,6 +305,7 @@ const objetivos = ref([])
 const mostrarTabela = ref(false)
 const porcentagemConceituais = ref(null)
 const porcentagemAtitudinais = ref(null)
+const carregandoObjetivos = ref(false)
 
 const mediaConceituais = computed(() => {
   const objetivosC = objetivos.value.filter(o => o.tipo_objetivo === 'C')
@@ -363,93 +379,133 @@ const totalCFMedias = computed(() => {
   return Math.round(Number(mediaCFConceituais.value) + Number(mediaCFAtitudinais.value))
 })
 
-const todasSelecionadas = computed(() =>
-  materiaSelecionada.value &&
-  turmaSelecionada.value &&
-  alunoSelecionado.value &&
-  periodoSelecionado.value
-)
+const todasSelecionadas = computed(() => {
+  if (perfilLogado.value === 'Aluno') {
+    // Para alunos, só precisa de matéria e período
+    return materiaSelecionada.value && periodoSelecionado.value
+  } else {
+    // Para professores e outros perfis, precisa de todas as seleções
+    return materiaSelecionada.value && 
+           turmaSelecionada.value && 
+           alunoSelecionado.value && 
+           periodoSelecionado.value
+  }
+})
 
 async function carregarTurmas() {
   turmas.value = []
   turmaSelecionada.value = ''
-  alunos.value = []
-  alunoSelecionado.value = ''
-  mostrarTabela.value = false
-  porcentagemConceituais.value = null
-  porcentagemAtitudinais.value = null
-
   if (!materiaSelecionada.value) return
 
+  const codigoProfessor = sessionStorage.getItem('codigo')
   try {
     const response = await axios.get(
       'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
       {
         headers: {
-          Token: auth.token
+          Token: sessionStorage.getItem('tokenSophia')
         }
       }
     )
-    let turmasFiltradas = response.data
+    turmas.value = response.data
       .filter(turma =>
         Array.isArray(turma.professoresDisciplinas) &&
         turma.professoresDisciplinas.some(pd =>
           pd.disciplina &&
-          pd.disciplina.codigo == materiaSelecionada.value
+          pd.disciplina.codigo == materiaSelecionada.value &&
+          Array.isArray(pd.colaboradores) &&
+          pd.colaboradores.some(colab => String(colab.codigo) === String(codigoProfessor))
         )
       )
       .map(turma => ({
         id_turma: turma.codigo,
         nome_turma: turma.nome
       }))
-
-    // Se for perfil Aluno, filtra apenas a turma da sessão
-    if (perfilLogado.value === 'Aluno') {
-      const turmaId = sessionStorage.getItem('turma_id')
-      turmas.value = turmasFiltradas.filter(t => String(t.id_turma) === String(turmaId))
-      // Já seleciona a turma automaticamente
-      if (turmas.value.length > 0) {
-        turmaSelecionada.value = turmas.value[0].id_turma
-      }
-    } else {
-      turmas.value = turmasFiltradas
-    }
   } catch (e) {
     turmas.value = []
   }
 }
 
+// Substitua a função carregarMaterias() existente por esta:
+async function carregarMaterias() {
+  materias.value = [];
+  materiaSelecionada.value = '';
+  turmas.value = [];
+  turmaSelecionada.value = '';
+  
+  // Verifica o perfil do usuário logado
+  const perfil = sessionStorage.getItem('perfil');
+  
+  if (perfil === 'Professor') {
+    // CASO PROFESSOR: Busca disciplinas pelos códigos armazenados na sessão
+    const codigos = JSON.parse(sessionStorage.getItem('codigo_disciplina') || '[]');
+    if (!codigos.length) return;
+    
+    try {
+      const url = `https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Disciplinas?Codigos=${codigos.join(',')}`;
+      const resp = await axios.get(url, {
+        headers: {
+          Token: sessionStorage.getItem('tokenSophia')
+        }
+      });
+      
+      materias.value = Array.isArray(resp.data)
+        ? resp.data.map(d => ({
+            id_materia: d.codigo,
+            nome_materia: d.nome
+          }))
+        : [];
+    } catch (e) {
+      materias.value = [];
+    }
+  } 
+  else if (perfil === 'Aluno') {
+    // CASO ALUNO: Busca disciplinas das turmas do aluno
+    const professoresDisciplinas = JSON.parse(sessionStorage.getItem('professoresDisciplinas') || '[]');
+    
+    // Extrai disciplinas únicas do array professoresDisciplinas
+    const disciplinasUnicas = [];
+    const codigosJaAdicionados = new Set();
+    
+    professoresDisciplinas.forEach(pd => {
+      if (pd.disciplina && pd.disciplina.codigo && !codigosJaAdicionados.has(pd.disciplina.codigo)) {
+        disciplinasUnicas.push({
+          id_materia: pd.disciplina.codigo,
+          nome_materia: pd.disciplina.nome
+        });
+        codigosJaAdicionados.add(pd.disciplina.codigo);
+      }
+    });
+    
+    // Ordena por nome para melhor visualização
+    materias.value = disciplinasUnicas.sort((a, b) => 
+      a.nome_materia.localeCompare(b.nome_materia)
+    );
+  }
+}
+
+// Carregar alunos da turma selecionada
 async function carregarAlunos() {
   alunos.value = []
   alunoSelecionado.value = ''
   if (!turmaSelecionada.value) return
-  try {
-    const response = await axios.get(
-      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Alunos?Unidades=2&Cursos=20,7&Inativos=false&ConsiderarTurmaFinalizada=false',
-      {
-        headers: {
-          Token: auth.token
-        }
-      }
-    )
-    let alunosFiltrados = response.data.filter(aluno =>
-      Array.isArray(aluno.turmas) &&
-      aluno.turmas.some(t => String(t.codigo) === String(turmaSelecionada.value))
-    ).map(aluno => ({
-      id_aluno: aluno.codigo,
-      nome_aluno: aluno.nome
-    }))
 
-    // Se for perfil Aluno, filtra apenas o aluno da sessão
-    if (perfilLogado.value === 'Aluno') {
-      const alunoId = sessionStorage.getItem('aluno_id')
-      alunos.value = alunosFiltrados.filter(a => String(a.id_aluno) === String(alunoId))
-      if (alunos.value.length > 0) {
-        alunoSelecionado.value = alunos.value[0].id_aluno
+  try {
+    const url = 'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Alunos?Unidades=2&Cursos=20,7&Inativos=false&ConsiderarTurmaFinalizada=false'
+    const resp = await axios.get(url, {
+      headers: {
+        Token: sessionStorage.getItem('tokenSophia')
       }
-    } else {
-      alunos.value = alunosFiltrados
-    }
+    })
+    alunos.value = Array.isArray(resp.data)
+      ? resp.data.filter(aluno =>
+          Array.isArray(aluno.turmas) &&
+          aluno.turmas.some(turma => String(turma.codigo) === String(turmaSelecionada.value))
+        ).map(aluno => ({
+          id_aluno: aluno.codigo,
+          nome_aluno: aluno.nome
+        }))
+      : []
   } catch (e) {
     alunos.value = []
   }
@@ -476,8 +532,6 @@ async function carregarPorcentagens() {
     porcentagemAtitudinais.value = 0
   }
 }
-
-// Chame carregarPorcentagens() junto com o carregamento dos objetivos ao clicar em "Avaliar"
 
 function limitarNota(objetivo, campo) {
   if (objetivo[campo] > 10) objetivo[campo] = 10
@@ -564,13 +618,45 @@ async function salvarNotaCF(objetivo) {
   }
 }
 
+async function carregarObjetivos() {
+  objetivos.value = []
+  carregandoObjetivos.value = true
+  if (
+    !materiaSelecionada.value ||
+    !turmaSelecionada.value ||
+    !periodoSelecionado.value
+  ) {
+    carregandoObjetivos.value = false
+    return
+  }
+
+  try {
+    const resp = await axios.get('/api/objetivos', {
+      params: {
+        id_materia: materiaSelecionada.value,
+        turma_id: turmaSelecionada.value,
+        trimestre: periodoSelecionado.value
+      }
+    })
+    objetivos.value = Array.isArray(resp.data) ? resp.data : []
+  } catch (e) {
+    objetivos.value = []
+  }
+  carregandoObjetivos.value = false
+}
+
 watchEffect(async () => {
+  // Para alunos, sempre use o código do aluno armazenado na sessão
+  if (perfilLogado.value === 'Aluno') {
+    alunoSelecionado.value = sessionStorage.getItem('aluno_codigo')
+  }
+
   // Carrega objetivos e notas quando mostrarTabela for true
   if (
     mostrarTabela.value &&
     materiaSelecionada.value &&
-    turmaSelecionada.value &&
-    alunoSelecionado.value &&
+    ((perfilLogado.value === 'Aluno' && alunoSelecionado.value) || 
+     (perfilLogado.value !== 'Aluno' && turmaSelecionada.value && alunoSelecionado.value)) &&
     periodoSelecionado.value
   ) {
     try {
@@ -605,50 +691,64 @@ watchEffect(async () => {
   }
 })
 
-const materias = ref([])
-const materiaSelecionada = ref('')
-
-// Carregar todas as matérias da API Sophia
-async function carregarMaterias() {
-  materias.value = []
-  materiaSelecionada.value = ''
-  turmas.value = []
-  turmaSelecionada.value = ''
-  objetivos.value = []
-  mostrarTabela.value = false
-
-  try {
-    const response = await axios.get(
-      'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas?Cursos=20,7&Unidades=2',
-      {
-        headers: {
-          Token: auth.token
-        }
-      }
-    )
-    // Filtra apenas a turma Krahô Kanela (codigo 1601)
-    const turmaKraho = response.data.find(turma => turma.codigo == 1601)
-    const disciplinasSet = new Set()
-    if (turmaKraho && Array.isArray(turmaKraho.professoresDisciplinas)) {
-      turmaKraho.professoresDisciplinas.forEach(pd => {
-        if (pd.disciplina && pd.disciplina.codigo && pd.disciplina.nome) {
-          disciplinasSet.add(JSON.stringify({
-            id_materia: pd.disciplina.codigo,
-            nome_materia: pd.disciplina.nome
-          }))
-        }
-      })
-    }
-    materias.value = Array.from(disciplinasSet)
-      .map(str => JSON.parse(str))
-      .sort((a, b) => a.nome_materia.localeCompare(b.nome_materia))
-  } catch (e) {
-    materias.value = []
+watchEffect(() => {
+  if (turmaSelecionada.value) {
+    carregarAlunos()
+  } else {
+    alunos.value = []
+    alunoSelecionado.value = ''
   }
-}
+})
 
-// Chame carregarMaterias ao montar o componente
+// Carregar matérias ao montar o componente
 onMounted(() => {
+  // Preencher valores automaticamente se for aluno
+  if (perfilLogado.value === 'Aluno') {
+    // Usa o código do aluno da sessão
+    alunoSelecionado.value = sessionStorage.getItem('aluno_codigo')
+    
+    // Se houver apenas uma turma, seleciona automaticamente
+    const codigosTurma = JSON.parse(sessionStorage.getItem('aluno_codigos_turma') || '[]')
+    if (codigosTurma.length === 1) {
+      turmaSelecionada.value = codigosTurma[0]
+    }
+  }
+  
   carregarMaterias()
 })
+
+function aoAvaliar() {
+  if (perfilLogado.value === 'Aluno') {
+    // Para alunos, use o código do aluno e turma da sessão
+    alunoSelecionado.value = sessionStorage.getItem('aluno_codigo')
+    
+    // Tenta usar a primeira turma se houver várias
+    if (!turmaSelecionada.value) {
+      const codigosTurma = JSON.parse(sessionStorage.getItem('aluno_codigos_turma') || '[]')
+      if (codigosTurma.length > 0) {
+        turmaSelecionada.value = codigosTurma[0]
+      }
+    }
+  }
+  
+  // Continua normalmente
+  carregarObjetivos()
+  mostrarTabela.value = true
+}
 </script>
+
+<style>
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid #b91509;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>

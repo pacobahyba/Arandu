@@ -1,15 +1,21 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import axios from 'axios'
 
-export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || null)
-  function setToken(newToken) {
-    token.value = newToken
-    localStorage.setItem('token', newToken)
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    token: sessionStorage.getItem('token') || null,
+  }),
+  actions: {
+    setToken(token) {
+      this.token = token
+      sessionStorage.setItem('token', token)
+      // configura axios para enviar Authorization automaticamente
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    },
+    logout() {
+      this.token = null
+      sessionStorage.removeItem('token')
+      delete axios.defaults.headers.common['Authorization']
+    }
   }
-  function logout() {
-    token.value = null
-    localStorage.removeItem('token')
-  }
-  return { token, setToken, logout }
 })

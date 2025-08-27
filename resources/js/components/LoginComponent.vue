@@ -32,9 +32,17 @@
         </div>
       </div>
       <div class="login-btn-container">
-        <button type="submit">{{ tokenEnviado ? 'Validar Token' : 'Entrar' }}</button>
+        <button type="submit" :disabled="realizandoLogin || enviandoToken">
+          {{ tokenEnviado ? 'Validar Token' : 'Entrar' }}
+        </button>
       </div>
       <div v-if="erro" class="erro-login">{{ erro }}</div>
+      <div v-if="enviandoToken" style="text-align:center; color:#b91509; margin-top:0.5em;">
+        Enviando token...
+      </div>
+      <div v-if="realizandoLogin" style="text-align:center; color:#b91509; margin-top:0.5em;">
+        <span class="spinner" style="margin-right:0.5em;"></span>Realizando login...
+      </div>
     </form>
   </div>
 </template>
@@ -48,6 +56,8 @@ const email = ref('')
 const erro = ref('')
 const tokenEnviado = ref(false)
 const otp = ref('')
+const enviandoToken = ref(false)
+const realizandoLogin = ref(false)
 const emit = defineEmits(['login-sucesso'])
 const auth = useAuthStore()
 
@@ -57,25 +67,28 @@ async function enviarMagicLink() {
     erro.value = 'Informe um e-mail válido.'
     return
   }
+  enviandoToken.value = true
   try {
     await axios.post('/api/auth/send-magic-link', { email: email.value })
     tokenEnviado.value = true
   } catch (e) {
     erro.value = 'Erro ao enviar o link/token. Tente novamente.'
   }
+  enviandoToken.value = false
 }
 
 async function autenticarComOTP() {
-  erro.value = ''
+  realizandoLogin.value = true
   try {
     const resp = await axios.post('/api/auth/verify-otp', { email: email.value, otp: otp.value })
-    // Exemplo: resp.data.perfil, resp.data.token
     sessionStorage.setItem('perfil', resp.data.perfil)
     auth.setToken(resp.data.token)
+    sessionStorage.setItem('email', email.value)
     emit('login-sucesso')
   } catch (e) {
     erro.value = 'Token inválido ou expirado.'
   }
+  realizandoLogin.value = false
 }
 </script>
 
@@ -209,6 +222,17 @@ async function autenticarComOTP() {
   outline: none;
   color: #b91509;
 }
+.campo-email input[type="email"] {
+  background-color: #fff !important;
+}
+.campo-email input[type="email"]:focus,
+.campo-email input[type="email"]:active,
+.campo-email input[type="email"]:visited,
+.campo-email input[type="email"]:hover,
+.campo-email input[type="email"]:autofill {
+  background-color: #fff !important;
+  box-shadow: none !important;
+}
 
 .login-btn-container {
   display: flex;
@@ -295,5 +319,29 @@ async function autenticarComOTP() {
   font-size: 16px;
   outline: none;
   color: #b91509;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+  box-shadow: 0 0 0 1000px #fff inset !important;
+  background-color: #fff !important;
+  color: #b91509 !important;
+}
+
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid #b91509;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
