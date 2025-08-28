@@ -1,9 +1,10 @@
 <template>
-  <div class="container" style="display: flex;">
-    <div class="left-panel">
-      <h2>Ficha de avaliação</h2>
+  <div class="container">
+    <h2>Ficha de avaliação</h2>
+    
+    <!-- Formulário de seleção -->
+    <div class="selecao-container">
       <label for="periodo-select" class="avaliacao-label">Período:</label>
-      <!-- NÃO bloqueie os selects -->
       <select id="periodo-select" v-model="periodoSelecionado" class="avaliacao-select" @change="carregarMaterias">
         <option value="">Selecione...</option>
         <option value="1º Tri">1º Tri</option>
@@ -11,7 +12,7 @@
         <option value="3º Tri">3º Tri</option>
       </select>
       <br /><br />
-      <!-- Combos -->
+
       <label for="materia-select" class="avaliacao-label">Matéria:</label>
       <select id="materia-select" v-model="materiaSelecionada" @change="carregarTurmas" class="avaliacao-select">
         <option value="">Selecione...</option>
@@ -21,7 +22,6 @@
       </select>
       <br /><br />
 
-      <!-- Modifique a parte do select de turma -->
       <template v-if="perfilLogado !== 'Aluno'">
         <label for="turma-select" class="avaliacao-label">Turma:</label>
         <select id="turma-select" v-model="turmaSelecionada" :disabled="!materiaSelecionada" class="avaliacao-select" @change="carregarAlunos">
@@ -47,7 +47,6 @@
         <br /><br />
       </template>
 
-      <!-- Botão Avaliar -->
       <button
         :disabled="!todasSelecionadas"
         @click="aoAvaliar"
@@ -55,232 +54,229 @@
       >
         Avaliar
       </button>
+    </div>
 
-      <!-- Painel de porcentagens -->
-      <div v-if="mostrarTabela && objetivos.length && porcentagemConceituais !== null && porcentagemAtitudinais !== null" style="margin-top: 2em; margin-bottom:2em; background:#eef; padding:1em; border-radius:8px; width:400px;">
-        <h3 style="margin-top:0;">Porcentagens da nota</h3>
-        <table border="1" cellpadding="5" style="width:100%;">
+    <!-- Painel de notas - Agora posicionado no topo da avaliação -->
+    <div 
+      id="notas-panel"
+      v-if="mostrarTabela && objetivos.length && porcentagemConceituais !== null && porcentagemAtitudinais !== null"
+      style="margin: 2em auto; max-width: 600px;"
+    >
+      <div style="display: flex; gap: 2em; justify-content: space-between;">
+        <!-- Porcentagens da nota -->
+        <div style="background:#eef; padding:1em; border-radius:8px; flex: 1;">
+          <h3 style="margin-top:0;">Porcentagens da nota</h3>
+          <table border="1" cellpadding="5" style="width:100%; margin: 0;">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Porcentagem da nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Objetivos Conceituais</td>
+                <td>{{ porcentagemConceituais }}%</td>
+              </tr>
+              <tr>
+                <td>Obj. Atitudinais e Procedimentais</td>
+                <td>{{ porcentagemAtitudinais }}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tabela de notas -->
+        <div style="flex: 1;">
+          <table border="1" cellpadding="8" style="background: #dde3f0; width: 100%; text-align: center;">
+            <tr style="background: #d3daea;">
+              <td colspan="4" style="font-weight: bold;">NOTAS</td>
+            </tr>
+            <tr style="background: #f5f7fa;">
+              <th>Est</th>
+              <th>Prof</th>
+              <th>Rec</th>
+              <th>CF</th>
+            </tr>
+            <tr id="linha1">
+              <td id="media-conceituais">{{ mediaConceituais }}</td>
+              <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
+              <td>C</td>
+              <td id="media-cf-conceituais">{{ mediaCFConceituais }}</td>
+            </tr>
+            <tr id="linha2">
+              <td id="media-atitudinais">{{ mediaAtitudinais }}</td>
+              <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
+              <td>A</td>
+              <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
+            </tr>
+            <tr id="linha3">
+              <td id="total-medias">{{ totalMedias }}</td>
+              <td id="total-prof-medias">{{ totalProfMedias }}</td>
+              <td>T</td>
+              <td id="total-cf-medias">{{ totalCFMedias }}</td>
+            </tr>
+          </table>
+          <div style="margin-top: 1em; font-size: 1.2em; font-weight: bold; text-align: center;">
+            Nota final: {{ totalCFMedias }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela de objetivos separada por tipo OU mensagem de vazio -->
+    <div v-if="mostrarTabela" style="margin-top:2em;">
+      <template v-if="carregandoObjetivos">
+        <div style="font-size:1.2em; color:#73331d; font-weight:bold; margin-top:2em; display:flex; align-items:center; gap:0.5em; justify-content: center;">
+          <span class="spinner"></span> Carregando objetivos...
+        </div>
+      </template>
+      <template v-else-if="objetivos.length">
+        <!-- Objetivos Conceituais -->
+        <table v-if="objetivos.filter(o => o.tipo_objetivo === 'C').length" border="1" cellpadding="5" style="background: #ffffcc; margin-bottom:2em; width:90%; min-width:700px; max-width:1200px; margin-left: auto; margin-right: auto;">
           <thead>
             <tr>
-              <th></th>
-              <th>Porcentagem da nota</th>
+              <th>#</th>
+              <th>Objetivos Conceituais</th>
+              <th>Est</th>
+              <th>Prof</th>
+              <th>Rec</th>
+              <th>CF</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>Objetivos Conceituais</td>
-              <td>{{ porcentagemConceituais }}%</td>
-            </tr>
-            <tr>
-              <td>Obj. Atitudinais e Procedimentais</td>
-              <td>{{ porcentagemAtitudinais }}%</td>
+            <tr v-for="(objetivo, idx) in objetivos.filter(o => o.tipo_objetivo === 'C')" :key="objetivo.id_objetivo">
+              <td>{{ idx + 1 }}</td>
+              <td>{{ objetivo.nome_objetivo }}</td>
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.est"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'est')"
+                  @blur="salvarNotaEst(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Professor' ? true : perfilLogado === 'Aluno' ? false : false"
+                />
+              </td>
+              <!-- Prof -->
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.prof"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
+                  @blur="salvarNotaProf(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
+              <!-- Remova o <td> referente a CP -->
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.rec"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
+                  @blur="salvarNotaRec(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.cf"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'cf')"
+                  @blur="salvarNotaCF(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- Tabela de objetivos separada por tipo OU mensagem de vazio -->
-      <div v-if="mostrarTabela" style="margin-top:2em;">
-        <template v-if="carregandoObjetivos">
-          <div style="font-size:1.2em; color:#73331d; font-weight:bold; margin-top:2em; display:flex; align-items:center; gap:0.5em;">
-            <span class="spinner"></span> Carregando objetivos...
-          </div>
-        </template>
-        <template v-else-if="objetivos.length">
-          <!-- Objetivos Conceituais -->
-          <table v-if="objetivos.filter(o => o.tipo_objetivo === 'C').length" border="1" cellpadding="5" style="background: #ffffcc; margin-bottom:2em;">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Objetivos Conceituais</th>
-                <th>Est</th>
-                <th>Prof</th>
-                <th>Rec</th>
-                <th>CF</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(objetivo, idx) in objetivos.filter(o => o.tipo_objetivo === 'C')" :key="objetivo.id_objetivo">
-                <td>{{ idx + 1 }}</td>
-                <td>{{ objetivo.nome_objetivo }}</td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.est"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'est')"
-                    @blur="salvarNotaEst(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' ? true : perfilLogado === 'Aluno' ? false : false"
-                  />
-                </td>
-                <!-- Prof -->
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.prof"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
-                    @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-                <!-- Remova o <td> referente a CP -->
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.rec"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
-                    @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.cf"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'cf')"
-                    @blur="salvarNotaCF(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <!-- Objetivos Atitudinais e Procedimentais -->
-          <table v-if="objetivos.filter(o => o.tipo_objetivo === 'A').length" border="1" cellpadding="5" style="background: #e6ffe6;">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Objetivos Atitudinais e Procedimentais</th>
-                <th>Est</th>
-                <th>Prof</th>
-                <th>Rec</th>
-                <th>CF</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(objetivo, idx) in objetivos.filter(o => o.tipo_objetivo === 'A')" :key="objetivo.id_objetivo">
-                <td>{{ idx + 1 }}</td>
-                <td>{{ objetivo.nome_objetivo }}</td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.est"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'est')"
-                    @blur="salvarNotaEst(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' ? true : perfilLogado === 'Aluno' ? false : false"
-                  />
-                </td>
-                <!-- Prof -->
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.prof"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
-                    @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-                <!-- Remova o <td> referente a CP -->
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.rec"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
-                    @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    v-model="objetivo.cf"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'cf')"
-                    @blur="salvarNotaCF(objetivo)"
-                    :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </template>
-        <template v-else>
-          <div style="font-size:1.2em; color:#73331d; font-weight:bold; margin-top:2em;">
-            Não há objetivos cadastrados para esse período.
-          </div>
-        </template>
-      </div>
-    </div>
-    <div class="right-panel" v-if="mostrarTabela">
-      <!-- Painel de notas, porcentagens, nota final -->
-      <div
-        id="notas-panel"
-        v-if="mostrarTabela && objetivos.length"
-      >
-        <table border="1" cellpadding="8" style="background: #dde3f0; min-width: 260px; text-align: center;">
-          <tr style="background: #d3daea;">
-            <td colspan="4" style="font-weight: bold;">NOTAS</td>
-          </tr>
-          <tr style="background: #f5f7fa;">
-            <th>Est</th>
-            <th>Prof</th>
-            <th>Rec</th>
-            <th>CF</th>
-          </tr>
-          <tr id="linha1">
-            <td id="media-conceituais">{{ mediaConceituais }}</td>
-            <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
-            <td>C</td>
-            <td id="media-cf-conceituais">
-              {{
-                (() => {
-                  const objetivosC = objetivos.filter(o => o.tipo_objetivo === 'C')
-                  if (!objetivosC.length) return 0
-                  const soma = objetivosC.reduce((soma, obj) => soma + (Number(obj.cf) || 0), 0)
-                  return Math.round((soma * (Number(porcentagemConceituais ?? 0))) / (objetivosC.length * 10))
-                })()
-              }}
-            </td>
-          </tr>
-          <tr id="linha2">
-            <td id="media-atitudinais">{{ mediaAtitudinais }}</td>
-            <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
-            <td>A</td>
-            <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
-          </tr>
-          <tr id="linha3">
-            <td id="total-medias">{{ totalMedias }}</td>
-            <td id="total-prof-medias">{{ totalProfMedias }}</td>
-            <td>T</td>
-            <td id="total-cf-medias">{{ totalCFMedias }}</td>
-          </tr>
+        
+        <!-- Objetivos Atitudinais e Procedimentais -->
+        <table v-if="objetivos.filter(o => o.tipo_objetivo === 'A').length" border="1" cellpadding="5" style="background: #e6ffe6; width:90%; min-width:700px; max-width:1200px; margin-left: auto; margin-right: auto;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Objetivos Atitudinais e Procedimentais</th>
+              <th>Est</th>
+              <th>Prof</th>
+              <th>Rec</th>
+              <th>CF</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(objetivo, idx) in objetivos.filter(o => o.tipo_objetivo === 'A')" :key="objetivo.id_objetivo">
+              <td>{{ idx + 1 }}</td>
+              <td>{{ objetivo.nome_objetivo }}</td>
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.est"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'est')"
+                  @blur="salvarNotaEst(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Professor' ? true : perfilLogado === 'Aluno' ? false : false"
+                />
+              </td>
+              <!-- Prof -->
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.prof"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'prof'); atualizarCF(objetivo)"
+                  @blur="salvarNotaProf(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
+              <!-- Remova o <td> referente a CP -->
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.rec"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'rec'); atualizarCF(objetivo)"
+                  @blur="salvarNotaRec(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  v-model="objetivo.cf"
+                  :max="10"
+                  min="0"
+                  style="width: 50px;"
+                  @input="limitarNota(objetivo, 'cf')"
+                  @blur="salvarNotaCF(objetivo)"
+                  :disabled="perfilLogado === 'Administrador' || perfilLogado === 'Aluno'"
+                />
+              </td>
+            </tr>
+          </tbody>
         </table>
-        <div style="margin-top: 1em; font-size: 1.2em; font-weight: bold;">
-          Nota final: {{ totalCFMedias }}
+      </template>
+      <template v-else>
+        <div style="font-size:1.2em; color:#73331d; font-weight:bold; margin-top:2em; text-align: center;">
+          Não há objetivos cadastrados para esse período.
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>

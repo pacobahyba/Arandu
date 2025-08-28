@@ -96,7 +96,15 @@ class MagicLinkController extends Controller
                         Log::info("Encontrou colaborador: {$colabs[0]['nome']}");
                         $codigoColaborador = $colabs[0]['codigo'];
                         $nomeColaborador = $colabs[0]['nome'] ?? null;
-                        $perfil = 'Professor';
+                        
+                        // Verificação mais robusta para a chave 'leciona'
+                        if (isset($colabs[0]['leciona']) && ($colabs[0]['leciona'] === true || $colabs[0]['leciona'] === 'true' || $colabs[0]['leciona'] === 1 || $colabs[0]['leciona'] === '1')) {
+                            $perfil = 'Professor';
+                            Log::info("Colaborador definido como Professor porque leciona=true");
+                        } else {
+                            $perfil = 'Administrativo';
+                            Log::info("Colaborador definido como Administrativo porque leciona=" . (isset($colabs[0]['leciona']) ? var_export($colabs[0]['leciona'], true) : 'não definido'));
+                        }
                         $encontrouColaborador = true;
                     } else {
                         Log::info("Não encontrou colaborador para o email: {$request->email}");

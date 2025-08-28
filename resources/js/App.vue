@@ -22,7 +22,7 @@
               Início
             </button>
             <button
-              v-if="perfilLogado !== 'Aluno'"
+              v-if="perfilLogado === 'Professor'"
               :class="{ ativo: paginaAtual === 'objetivos' }"
               @click="paginaAtual = 'objetivos'"
             >
@@ -37,7 +37,7 @@
             <button @click="logout" class="logout-button">Sair</button>
           </template>
         </nav>
-        <div style="margin-bottom: 1em; font-weight: bold; color: #4f6c33;">
+        <div style="margin-bottom: 1em; font-weight: bold; color: #4f6c33; max-width:35rem; margin:0 auto;">
           Perfil logado: {{ perfilLogado }}
         </div>
         <div v-if="paginaAtual === 'inicio'">
@@ -74,11 +74,8 @@
 
 <script setup>
 import axios from 'axios'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useAuthStore } from './stores/auth'
-import AlunoComponent from './components/AlunoComponent.vue'
-import TurmaComponent from './components/TurmaComponent.vue'
-import MateriaComponent from './components/MateriaComponent.vue'
 import AvaliacaoComponent from './components/AvaliacaoComponent.vue'
 import ObjetivoComponent from './components/ObjetivoComponent.vue'
 import LoginComponent from './components/LoginComponent.vue'
@@ -87,8 +84,6 @@ import { useRouter } from 'vue-router'
 // Estado da aplicação
 const loading = ref(true)
 const perfilLogado = ref('')
-const router = useRouter()
-const currentYear = new Date().getFullYear()
 
 const auth = useAuthStore()
 
@@ -181,6 +176,15 @@ async function autenticarSophia() {
 async function buscarCodigoProfessor() {
   const email = sessionStorage.getItem('email')
   if (!email) return
+  
+  // Verificar se já está definido como Administrativo pelo backend
+  const perfilAtual = sessionStorage.getItem('perfil')
+  if (perfilAtual === 'Administrativo') {
+    // Se já for Administrativo, mantém esse perfil e não sobrescreve
+    perfilLogado.value = 'Administrativo'
+    console.log('Mantendo perfil Administrativo definido pelo backend')
+    return
+  }
 
   try {
     const url = `https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Colaboradores?Email=${encodeURIComponent(email)}`
@@ -194,10 +198,22 @@ async function buscarCodigoProfessor() {
       const col = resp.data[0]
       if (col && col.codigo !== undefined) {
         sessionStorage.setItem('codigo', String(col.codigo))
-        sessionStorage.setItem('perfil', 'Professor')
-        perfilLogado.value = 'Professor'
+        
+        // Verificar o campo "leciona"
+        if (col.leciona === true || col.leciona === "true" || col.leciona === 1) {
+          sessionStorage.setItem('perfil', 'Professor')
+          perfilLogado.value = 'Professor'
+        } else {
+          sessionStorage.setItem('perfil', 'Administrativo')
+          perfilLogado.value = 'Administrativo'
+        }
+        
         sessionStorage.setItem('nome', col.nome || '')
-        await buscarTurmasEMateriasDoProfessor()
+        
+        // Só busca turmas se for professor
+        if (perfilLogado.value === 'Professor') {
+          await buscarTurmasEMateriasDoProfessor()
+        }
         return true
       }
     } 
@@ -361,9 +377,25 @@ async function buscarTurmasDoAluno() {
 
 // chamar após login bem-sucedido
 async function onLoginSucesso() {
-  perfilLogado.value = sessionStorage.getItem('perfil') || 'Não definido'
-  // autentica na Sophia e guarda tokenSophia
-  await autenticarSophia()
+  // Armazenar valores necessários para isLoggedIn PRIMEIRO
+  const perfil = sessionStorage.getItem('perfil') || 'Não definido'
+  perfilLogado.value = perfil
+  
+  // Autenticar na Sophia e obter o token
+  const tokenSophia = await autenticarSophia()
+  
+  // Forçar a atualização da UI
+  await nextTick()
+  
+  // Ainda tendo problemas? Forçar atualização do DOM
+  setTimeout(() => {
+    // Isto força a reavaliação das classes
+    const container = document.getElementById('container-geral')
+    if (container) {
+      container.classList.remove('login-centralizado')
+      container.classList.add('app-centralizado')
+    }
+  }, 100)
 }
 
 // também tenta autenticar Sophia no carregamento, se houver token da app

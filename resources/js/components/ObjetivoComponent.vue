@@ -1,6 +1,5 @@
 <template>
   <div class="container" style="display: flex;">
-    <div class="left-panel">
       <!-- Conteúdo atual do componente -->
       <div>
         <!-- Combo Professor para Administrador -->
@@ -174,8 +173,7 @@
           </div>
         </div>
       </div>
-    </div>
-    <div class="right-panel" v-if="mostrarTabela">
+    <div v-if="mostrarTabela">
       <!-- Aqui poderia ficar um painel de resumo, ajuda ou outras informações -->
     </div>
   </div>
