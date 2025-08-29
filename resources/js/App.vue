@@ -29,6 +29,14 @@
               Objetivos
             </button>
             <button
+              v-if="perfilLogado === 'Administrativo'"
+              :class="{ ativo: paginaAtual === 'periodos' }"
+              @click="paginaAtual = 'periodos'"
+            >
+              Períodos
+            </button>
+            <button
+              v-if="perfilLogado !== 'Administrativo'"
               :class="{ ativo: paginaAtual === 'avaliacao' }"
               @click="paginaAtual = 'avaliacao'"
             >
@@ -64,6 +72,9 @@
         <div v-else-if="paginaAtual === 'avaliacao'">
           <AvaliacaoComponent />
         </div>
+        <div v-else-if="paginaAtual === 'periodos'">
+          <PeriodosComponent />
+        </div>
       </template>
       <template v-else>
         <LoginComponent @login-sucesso="onLoginSucesso" />
@@ -79,7 +90,7 @@ import { useAuthStore } from './stores/auth'
 import AvaliacaoComponent from './components/AvaliacaoComponent.vue'
 import ObjetivoComponent from './components/ObjetivoComponent.vue'
 import LoginComponent from './components/LoginComponent.vue'
-import { useRouter } from 'vue-router'
+import PeriodosComponent from './components/PeriodosComponent.vue'
 
 // Estado da aplicação
 const loading = ref(true)

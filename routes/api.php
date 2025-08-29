@@ -2,12 +2,13 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TurmaController;
-use App\Http\Controllers\AnoController;
-use App\Http\Controllers\AlunoController;
+// use App\Http\Controllers\TurmaController;
+// use App\Http\Controllers\AnoController;
+// use App\Http\Controllers\AlunoController;
 use App\Http\Controllers\SophiaAuthController;
 use App\Http\Controllers\ObjetivoController;
 use App\Http\Controllers\Auth\MagicLinkController;
+use App\Http\Controllers\PeriodoAvaliacaoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,7 +25,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-//Salvando turma
+/*//Salvando turma
 Route::post('/turmas', [TurmaController::class, 'store']);
 
 //Listando turmas
@@ -58,7 +59,7 @@ Route::get('/turmas-professor', function(\Illuminate\Http\Request $request) {
         ->where('id_professor', $professorId)
         ->where('id_materia', $materiaId)
         ->get();
-});
+});*/
 
 //Listando objetivos
 Route::get('/objetivos', function(\Illuminate\Http\Request $request) {
@@ -104,11 +105,11 @@ Route::get('/notas', function(\Illuminate\Http\Request $request) {
         ->get();
 });
 
-//Listando matérias por professor
+/*//Listando matérias por professor
 Route::get('/materias-professor', function(\Illuminate\Http\Request $request) {
     $professorId = $request->query('id_professor');
     return \DB::table('vw_professores_materias_turmas')->where('id_professor', $professorId)->get();
-});
+});*/
 
 // Atualizando porcentagem de objetivos
 Route::post('/porcentagem-objetivos', function(\Illuminate\Http\Request $request) {
@@ -156,3 +157,9 @@ Route::post('/auth/send-magic-link', [MagicLinkController::class, 'send']);
 
 // Rota para verificação de OTP
 Route::post('/auth/verify-otp', [MagicLinkController::class, 'verify']);
+
+// Rota para salvamento de períodos de avaliação
+Route::post('/periodos-avaliacao', [PeriodoAvaliacaoController::class, 'store']);
+
+// Rota para listagem de períodos de avaliação
+Route::get('/periodos-avaliacao', [PeriodoAvaliacaoController::class, 'showByPeriodo']);

