@@ -12,5 +12,8 @@ class PeriodoAvaliacao extends Model
         'periodo',
         'dt_primeiro_dia',
         'dt_ultimo_dia',
+        'ano',
     ];
+
+    protected $primaryKey = 'id_periodo_avaliacao'; // Use o nome correto da sua chave primária
 }

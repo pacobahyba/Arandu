@@ -1,6 +1,11 @@
 <template>
   <div class="login-bg-overlay">
-    <form @submit.prevent="tokenEnviado ? autenticarComOTP() : enviarMagicLink()" class="login-form">
+    <!-- Formulário de login -->
+    <form
+      v-if="!exibirCadastroSenha"
+      @submit.prevent="tokenEnviado ? autenticarComSenha() : verificarEmail()"
+      class="login-form"
+    >
       <img class="login-logo" src="/public/images/logo_arandu.png" alt="Logo Arandu" />
       <h2 class="login-title">Login</h2>
       <div class="campo-email">
@@ -17,33 +22,105 @@
           <span class="icone">&#9993;</span>
         </div>
       </div>
-      <!-- Campo OTP aparece após envio do token -->
-      <div v-if="tokenEnviado" class="campo-otp">
-        <label for="otp">Token recebido</label>
+      <!-- Campo senha aparece após verificação do email -->
+      <div v-if="tokenEnviado" class="campo-senha">
+        <label for="senha">Senha</label>
         <div class="input-wrapper">
           <input
-            type="text"
-            id="otp"
-            v-model="otp"
-            maxlength="6"
-            placeholder="Digite o token"
+            :type="senhaVisivel ? 'text' : 'password'"
+            id="senha"
+            v-model="senha"
+            placeholder="Digite sua senha"
             required
           />
+          <span
+            class="icone senha-toggle"
+            @click="senhaVisivel = !senhaVisivel"
+            :title="senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'"
+            style="cursor:pointer;"
+          >
+            <i :class="senhaVisivel ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+          </span>
         </div>
+      </div>
+      <div v-if="tokenEnviado" class="link-primeiro-acesso">
+        <a href="#" @click.prevent="mostrarCadastroSenha">
+          É seu primeiro acesso ou deseja trocar a sua senha?
+        </a>
       </div>
       <div class="login-btn-container">
         <button type="submit" :disabled="realizandoLogin || enviandoToken">
-          {{ tokenEnviado ? 'Validar Token' : 'Entrar' }}
+          {{ tokenEnviado ? 'Entrar' : 'Avançar' }}
         </button>
       </div>
-      <div v-if="erro" class="erro-login">{{ erro }}</div>
+      <div v-if="erro" class="erro-login">
+        {{ erro === 'E-mail não verificado.' ? 'Seu cadastro não foi finalizado. Por favor verifique o seu email para finalizar o processo.' : erro }}
+      </div>
+      <div v-if="erro === 'E-mail não verificado.'" style="text-align:center; margin-top:0.5em;">
+        <a href="#" @click.prevent="reenviarEmailConfirmacao">Reenviar e-mail de confirmação</a>
+      </div>
       <div v-if="enviandoToken" style="text-align:center; color:#b91509; margin-top:0.5em;">
-        Enviando token...
+        Verificando e-mail...
       </div>
       <div v-if="realizandoLogin" style="text-align:center; color:#b91509; margin-top:0.5em;">
         <span class="spinner" style="margin-right:0.5em;"></span>Realizando login...
       </div>
+      <div v-if="mensagemLogin" class="sucesso-login">{{ mensagemLogin }}</div>
     </form>
+
+    <!-- Formulário de cadastro de senha -->
+    <div v-else class="cadastro-senha-form">
+      <h3>Definir nova senha</h3>
+      <form class="form-senha" @submit.prevent="cadastrarSenha">
+        <div>
+          <label>E-mail</label>
+          <input type="email" :value="email" disabled />
+        </div>
+        <div>
+          <label>Nova senha</label>
+          <div class="input-wrapper">
+            <input
+              :type="novaSenhaVisivel ? 'text' : 'password'"
+              v-model="novaSenha"
+              required
+            />
+            <span
+              class="icone senha-toggle"
+              @click="novaSenhaVisivel = !novaSenhaVisivel"
+              :title="novaSenhaVisivel ? 'Ocultar senha' : 'Mostrar senha'"
+              style="cursor:pointer;"
+            >
+              <i :class="novaSenhaVisivel ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+            </span>
+          </div>
+        </div>
+        <div>
+          <label>Confirme a senha</label>
+          <div class="input-wrapper">
+            <input
+              :type="confirmaSenhaVisivel ? 'text' : 'password'"
+              v-model="confirmaSenha"
+              required
+            />
+            <span
+              class="icone senha-toggle"
+              @click="confirmaSenhaVisivel = !confirmaSenhaVisivel"
+              :title="confirmaSenhaVisivel ? 'Ocultar senha' : 'Mostrar senha'"
+              style="cursor:pointer;"
+            >
+              <i :class="confirmaSenhaVisivel ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+            </span>
+          </div>
+        </div>
+        <button type="submit" :disabled="salvandoSenha">Salvar senha</button>
+        <div v-if="erroSenha" class="erro-login">{{ erroSenha }}</div>
+        <div v-if="sucessoSenha" class="sucesso-login">{{ sucessoSenha }}</div>
+        <div v-if="mensagemLogin" class="sucesso-login">{{ mensagemLogin }}</div>
+      </form>
+      <div class="voltar-login">
+        <a href="#" @click.prevent="exibirCadastroSenha = false">Voltar para o login</a>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -53,15 +130,26 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 
 const email = ref('')
+const senha = ref('')
 const erro = ref('')
-const tokenEnviado = ref(false)
-const otp = ref('')
+const tokenEnviado = ref(false) // agora indica se pode mostrar o campo senha
 const enviandoToken = ref(false)
 const realizandoLogin = ref(false)
-const emit = defineEmits(['login-sucesso'])
+const emit = defineEmits(['login-sucesso', 'primeiro-acesso'])
 const auth = useAuthStore()
 
-async function enviarMagicLink() {
+const exibirCadastroSenha = ref(false)
+const novaSenha = ref('')
+const confirmaSenha = ref('')
+const erroSenha = ref('')
+const sucessoSenha = ref('')
+const salvandoSenha = ref(false)
+const senhaVisivel = ref(false)
+const novaSenhaVisivel = ref(false)
+const confirmaSenhaVisivel = ref(false)
+const mensagemLogin = ref('')
+
+async function verificarEmail() {
   erro.value = ''
   if (!email.value) {
     erro.value = 'Informe um e-mail válido.'
@@ -69,279 +157,93 @@ async function enviarMagicLink() {
   }
   enviandoToken.value = true
   try {
-    await axios.post('/api/auth/send-magic-link', { email: email.value })
-    tokenEnviado.value = true
+    // Verifica se o email pertence a colaborador ou aluno
+    await axios.post('/api/checar-email', { email: email.value })
+    tokenEnviado.value = true // Mostra o campo de senha
   } catch (e) {
-    erro.value = 'Erro ao enviar o link/token. Tente novamente.'
+    if (e.response && e.response.status === 404 && e.response.data && e.response.data.message) {
+      erro.value = e.response.data.message
+    } else {
+      erro.value = 'Erro ao verificar o e-mail. Tente novamente.'
+    }
   }
   enviandoToken.value = false
 }
 
-async function autenticarComOTP() {
-  realizandoLogin.value = true
+async function autenticarComSenha() {
   try {
-    const resp = await axios.post('/api/auth/verify-otp', { email: email.value, otp: otp.value })
+    const resp = await axios.post('/api/auth/login', { email: email.value, senha: senha.value })
+    
+    // ORDEM IMPORTANTE!
+    // 1. Salve primeiro no sessionStorage
+    sessionStorage.setItem('token', resp.data.token)
     sessionStorage.setItem('perfil', resp.data.perfil)
-    auth.setToken(resp.data.token)
     sessionStorage.setItem('email', email.value)
+    
+    // Se o backend retornar tokenSophia (perfil Desenvolvedor), salve também
+    if (resp.data.tokenSophia) {
+      sessionStorage.setItem('tokenSophia', resp.data.tokenSophia)
+    }
+    
+    // 2. Depois atualize o store
+    auth.setToken(resp.data.token)
+    
+    // 3. Finalmente, emita o evento
     emit('login-sucesso')
   } catch (e) {
-    erro.value = 'Token inválido ou expirado.'
+    if (e.response && e.response.data && e.response.data.message) {
+      erro.value = e.response.data.message
+    } else {
+      erro.value = 'Problema ao realizar login. Verifique suas credenciais.'
+    }
   }
-  realizandoLogin.value = false
+}
+
+// Chame isso ao clicar no link de primeiro acesso
+function mostrarCadastroSenha() {
+  exibirCadastroSenha.value = true
+  erroSenha.value = ''
+  sucessoSenha.value = ''
+  novaSenha.value = ''
+  confirmaSenha.value = ''
+}
+
+async function cadastrarSenha() {
+  erroSenha.value = ''
+  sucessoSenha.value = ''
+  if (!novaSenha.value || novaSenha.value.length < 8) {
+    erroSenha.value = 'A senha deve ter no mínimo 8 caracteres.'
+    return
+  }
+  if (novaSenha.value !== confirmaSenha.value) {
+    erroSenha.value = 'As senhas não coincidem.'
+    return
+  }
+  salvandoSenha.value = true
+  try {
+    await axios.post('/api/definir-senha', {
+      email: email.value,
+      senha: novaSenha.value
+    })
+    // Mostra mensagem no formulário de login
+    mensagemLogin.value = 'Senha alterada com sucesso. Verifique seu email para continuar.'
+    exibirCadastroSenha.value = false
+    // Limpa campos de senha
+    novaSenha.value = ''
+    confirmaSenha.value = ''
+  } catch (e) {
+    erroSenha.value = e.response?.data?.message || 'Erro ao cadastrar senha.'
+  }
+  salvandoSenha.value = false
+}
+
+async function reenviarEmailConfirmacao() {
+  erro.value = ''
+  try {
+    await axios.post('/api/definir-senha', { email: email.value, senha: 'tempSenha1234' })
+    mensagemLogin.value = 'E-mail de confirmação reenviado. Verifique sua caixa de entrada.'
+  } catch (e) {
+    erro.value = e.response?.data?.message || 'Erro ao reenviar e-mail de confirmação.'
+  }
 }
 </script>
-
-<style scoped>
-.login-bg-overlay {
-  max-height: 100vh;
-  max-width: 100vw;
-  display: flex;
-  flex-direction: row;
-}
-.central-container {
-  width: 50vw;
-  min-height: 100vh;
-  margin: 0 auto;
-  background: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 0;
-  box-shadow: none;
-}
-.login-right {
-  width: 50vw;
-  min-height: 100vh;
-}
-.login-form {
-  background: #fff;
-  padding: 2em 2.5em;
-  border-radius: 0;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1em;
-  min-width: 300px;
-  width: 100%;
-}
-.login-title {
-  text-align: center;
-  color: #b91509;
-  margin: 8vh 0 0.5em 0;
-}
-.login-field {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 70%;
-  margin: 0 auto;
-}
-.login-form label {
-  font-weight: bold;
-  color: #4f6c33;
-  margin-bottom: 0.2em;
-}
-.login-form input {
-  padding: 0.4em;
-  border-radius: 4px;
-  border: 1px solid #d0d7e2;
-  font-size: 0.95em;
-  width: 140px;
-  text-align: center;
-}
-.login-btn-container {
-  display: flex;
-  justify-content: center;
-  width: 300px;
-  margin-top: 1rem;
-}
-.login-form button {
-  background: #b91509;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 1em 2em;
-  font-size: 1em;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin: 0 auto;
-  display: block;
-  width: 100%;
-  min-width: 140px;
-  max-width: 300px;
-}
-.login-form button:hover {
-  background: #ff2415;
-}
-.erro-login {
-  color: #73331d;
-  font-weight: bold;
-  margin-top: 0.5em;
-  text-align: center;
-}
-
-.login-logo {
-  height: 120px;
-  width: 120px;
-  padding: 1em;
-  margin: 3rem auto 0 auto;
-  border-radius: 50%;
-  border: 1px solid #c0c0c0;
-  background-color: #FFF;
-}
-
-.campo-email,
-.campo-senha {
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* centraliza os campos */
-  width: 300px;
-}
-
-.input-wrapper {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.campo-email input[type="email"],
-.campo-senha input[type="password"] {
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  height: 3rem;
-  padding: 10px;
-  padding-right: 1rem; /* espaço pro ícone */
-  border: 1px solid #b91509;
-  border-radius: 4px;
-  font-size: 16px;
-  outline: none;
-  color: #b91509;
-}
-.campo-email input[type="email"] {
-  background-color: #fff !important;
-}
-.campo-email input[type="email"]:focus,
-.campo-email input[type="email"]:active,
-.campo-email input[type="email"]:visited,
-.campo-email input[type="email"]:hover,
-.campo-email input[type="email"]:autofill {
-  background-color: #fff !important;
-  box-shadow: none !important;
-}
-
-.login-btn-container {
-  display: flex;
-  justify-content: center;
-  width: 300px;
-}
-
-.login-form button {
-  width: 100%;
-  min-width: 140px;
-  max-width: 300px;
-  margin: 0 auto;
-  display: block;
-}
-
-/* Estilo do rótulo */
-.campo-email label,
-.campo-senha label {
-  font-family: Tahoma, sans-serif;
-  width: 4rem;
-  font-size: 14px;
-  color: #b91509;
-  margin: 0 0 -0.6rem 1rem;
-  z-index: 1;
-  background-color: #fff;
-  text-align: center;
-}
-
-/* Wrapper para o input e o ícone */
-.input-wrapper {
-  position: relative;
-}
-
-.campo-email input[type="email"]:focus,
-.campo-senha input[type="password"]:focus {
-  border-color: #ff8279;
-}
-
-.icone {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
-  color: #b91509;
-  background-color: #fff;
-  padding-left: 0.4em;
-}
-
-#rodape{
-  position: absolute;
-  bottom: 0;
-}
-
-.campo-otp {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 300px;
-  margin-top: 1em;
-}
-.campo-otp label {
-  font-family: Tahoma, sans-serif;
-  width: 8rem;
-  font-size: 14px;
-  color: #b91509;
-  margin: 0 0 -0.6rem 1rem;
-  z-index: 1;
-  background-color: #fff;
-  text-align: center;
-}
-.campo-otp .input-wrapper {
-  width: 100%;
-  position: relative;
-}
-.campo-otp input[type="text"] {
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  height: 3rem;
-  padding: 10px;
-  border: 1px solid #b91509;
-  border-radius: 4px;
-  font-size: 16px;
-  outline: none;
-  color: #b91509;
-}
-
-input:-webkit-autofill,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
-  box-shadow: 0 0 0 1000px #fff inset !important;
-  background-color: #fff !important;
-  color: #b91509 !important;
-}
-
-.spinner {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  border: 2px solid #b91509;
-  border-top: 2px solid transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  vertical-align: middle;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-</style>

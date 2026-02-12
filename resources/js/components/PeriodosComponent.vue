@@ -2,8 +2,15 @@
   <div class="periodos-container">
     <h2>Definir períodos letivos</h2>
     <form @submit.prevent="salvarPeriodo" class="periodos-form">
+      <label for="ano">Ano:</label>
+      <select id="ano" v-model="anoSelecionado" required>
+        <option value="">Selecione...</option>
+        <option v-for="ano in anosDisponiveis" :key="ano" :value="ano">{{ ano }}</option>
+      </select>
+      <br /><br />
+
       <label for="trimestre">Trimestre:</label>
-      <select id="trimestre" v-model="trimestre" required>
+      <select id="trimestre" v-model="trimestre" :disabled="!anoSelecionado" required>
         <option value="">Selecione...</option>
         <option value="1º Tri">1º Tri</option>
         <option value="2º Tri">2º Tri</option>
@@ -30,56 +37,92 @@
       />
       <br /><br />
 
-      <button type="submit" class="btn-salvar" :disabled="!trimestre || !primeiroDia">Salvar</button>
+      <button
+        type="submit"
+        class="btn-salvar"
+        :disabled="!trimestre || !primeiroDia || bloqueado"
+      >
+        Salvar
+      </button>
     </form>
     <div v-if="mensagem" class="mensagem-periodo">{{ mensagem }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 
+const anoSelecionado = ref('')
+const anosDisponiveis = ref([])
 const trimestre = ref('')
 const primeiroDia = ref('')
 const ultimoDia = ref('')
 const mensagem = ref('')
+const periodoId = ref(null)
+const bloqueado = ref(false)
+const periodoJaCadastrado = ref(false)
 
-// Busca os dados do período ao selecionar um trimestre
-watch(trimestre, async (novoTrimestre) => {
+// Carrega anos disponíveis ao montar o componente
+onMounted(() => {
+  const anoAtual = new Date().getFullYear()
+  // Adiciona o ano atual e os próximos 2 anos
+  anosDisponiveis.value = [anoAtual, anoAtual + 1, anoAtual + 2]
+})
+
+// Busca os dados do período ao selecionar ano e trimestre
+watch([anoSelecionado, trimestre], async ([novoAno, novoTrimestre]) => {
   primeiroDia.value = ''
   ultimoDia.value = ''
   mensagem.value = ''
-  if (!novoTrimestre) return
+  periodoId.value = null
+  periodoJaCadastrado.value = false
+  
+  if (!novoAno || !novoTrimestre) return
+  
   try {
     const resp = await axios.get('/api/periodos-avaliacao', {
-      params: { periodo: novoTrimestre }
+      params: { 
+        ano: novoAno,
+        periodo: novoTrimestre 
+      }
     })
+    
     if (resp.data && resp.data.dt_primeiro_dia) {
+      periodoJaCadastrado.value = true
       primeiroDia.value = resp.data.dt_primeiro_dia
       ultimoDia.value = resp.data.dt_ultimo_dia || ''
+      periodoId.value = resp.data.id_periodo_avaliacao
       mensagem.value = ''
     }
   } catch (e) {
-    // Não faz nada se não encontrar, apenas limpa os campos
+    periodoJaCadastrado.value = false
   }
+})
+
+watch([trimestre, primeiroDia, ultimoDia], () => {
+  bloqueado.value = false
 })
 
 async function salvarPeriodo() {
   mensagem.value = ''
-  if (!trimestre.value || !primeiroDia.value) {
-    mensagem.value = 'Preencha o trimestre e o primeiro dia.'
+  if (!anoSelecionado.value || !trimestre.value || !primeiroDia.value) {
+    mensagem.value = 'Preencha o ano, trimestre e o primeiro dia.'
     return
   }
+  bloqueado.value = true
   try {
     await axios.post('/api/periodos-avaliacao', {
+      ano: anoSelecionado.value,
       periodo: trimestre.value,
       dt_primeiro_dia: primeiroDia.value,
       dt_ultimo_dia: ultimoDia.value || null
     })
-    mensagem.value = `Período salvo: ${trimestre.value} (${primeiroDia.value} a ${ultimoDia.value || '---'})`
+    mensagem.value = `Período salvo: ${trimestre.value}/${anoSelecionado.value} (${primeiroDia.value} a ${ultimoDia.value || '---'})`
+    periodoJaCadastrado.value = true
   } catch (e) {
     mensagem.value = 'Erro ao salvar período.'
+    bloqueado.value = false
   }
 }
 </script>

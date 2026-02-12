@@ -20,12 +20,6 @@ class MagicLinkController extends Controller
 
         $email = $request->email;
 
-        // Exceção para o e-mail especial
-        if ($email === 'ceciliaschubsky@yahoo.com.br' || $email === 'pedro.barbozamachado@gmail.com') {
-            // Opcional: já defina um valor de OTP fixo ou pule o envio
-            return response()->json(['message' => 'Acesso liberado para este e-mail.']);
-        }
-
         $otp = rand(100000, 999999);
         Cache::put('otp_' . $email, $otp, now()->addMinutes(10));
 
@@ -46,18 +40,9 @@ class MagicLinkController extends Controller
 
         $email = $request->email;
 
-        // Exceção para o e-mail especial: pula a verificação do token
-        if ($email === 'ceciliaschubsky@yahoo.com.br' || $email === 'pedro.barbozamachado@gmail.com') {
-            // Prossiga com o fluxo de login normalmente, sem checar OTP
-            // Você pode copiar o restante do código do if ($cachedOtp && ...) aqui,
-            // ou apenas definir $cachedOtp como true para cair no fluxo normal:
-            $cachedOtp = true;
-            // Defina um valor qualquer para $request->otp se necessário
-        } else {
-            $cachedOtp = Cache::get('otp_' . $email);
-        }
+        $cachedOtp = Cache::get('otp_' . $email);
 
-        if ($cachedOtp && ($email === 'ceciliaschubsky@yahoo.com.br' || $request->otp == $cachedOtp)) {
+        if ($cachedOtp && $request->otp == $cachedOtp) {
             // Remova o OTP do cache após uso
             Cache::forget('otp_' . $request->email);
 
@@ -122,8 +107,12 @@ class MagicLinkController extends Controller
                             $perfil = 'Administrativo';
                             Log::info("Colaborador definido como Administrativo porque leciona=" . (isset($colabs[0]['leciona']) ? var_export($colabs[0]['leciona'], true) : 'não definido'));
                         }
-                        // Força o perfil Administrativo para este e-mail
-                        if ($email === 'pedro.barbozamachado@gmail.com') {
+                        // Força o perfil Administrativo para estes e-mails
+                        if (
+                            $email === 'pedrohenriqueb@ogamita.com.br' ||
+                            $email === 'bethsaraiva@ogamita.com.br' ||
+                            $email === 'monica@ogamita.com.br'
+                        ) {
                             $perfil = 'Administrativo';
                         }
                         $encontrouColaborador = true;
@@ -252,5 +241,78 @@ class MagicLinkController extends Controller
         }
 
         return response()->json(['message' => 'Token inválido ou expirado.'], 401);
+    }
+    
+    public function checarEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $email = $request->email;
+
+        // PERFIL DESENVOLVEDOR: Permite login direto sem verificação Sophia
+        if ($email === 'arandu@arandu.com.br') {
+            return response()->json(['tipo' => 'desenvolvedor']);
+        }
+
+        try {
+            // 1. Autenticar na Sophia
+            $client = new \GuzzleHttp\Client(['verify' => false]);
+            $respSophia = $client->post('https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Autenticacao', [
+                'json' => [
+                    'usuario' => 'FichadeAvaliacao',
+                    'senha' => '123456'
+                ],
+                'headers' => [
+                    'Content-Type' => 'application/json'
+                ]
+            ]);
+            $responseBody = $respSophia->getBody();
+            $dataSophia = json_decode($responseBody, true);
+            $tokenSophia = is_array($dataSophia) && !empty($dataSophia)
+                ? ($dataSophia['token'] ?? $dataSophia['Token'] ?? null)
+                : trim($responseBody, '"');
+
+            if (!$tokenSophia) {
+                return response()->json(['message' => 'Erro ao autenticar no Sophia.'], 500);
+            }
+
+            // 2. Verifica se é colaborador (professor)
+            $respColab = $client->get('https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Colaboradores?Email=' . urlencode($email), [
+                'headers' => [
+                    'Token' => $tokenSophia
+                ]
+            ]);
+            $colabs = json_decode($respColab->getBody(), true);
+
+            if (is_array($colabs) && count($colabs) > 0) {
+                return response()->json(['tipo' => 'colaborador']);
+            }
+
+            // 3. Verifica se é aluno
+            $respAlunos = $client->get('https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Alunos?Unidades=2&Cursos=20,7', [
+                'headers' => [
+                    'Token' => $tokenSophia
+                ]
+            ]);
+            $alunos = json_decode($respAlunos->getBody(), true);
+
+            if (is_array($alunos)) {
+                foreach ($alunos as $aluno) {
+                    if (isset($aluno['email']) && strtolower($aluno['email']) === strtolower($email)) {
+                        return response()->json(['tipo' => 'aluno']);
+                    }
+                }
+            }
+            
+            // Não achou em nenhum dos dois
+            return response()->json([
+                'message' => 'O email fornecido não está vinculado a aluno nem professor no Sophia. Por favor faça o cadastro no Sophia e tente novamente.'
+            ], 404);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Erro ao consultar Sophia.', 'error' => $e->getMessage()], 500);
+        }
     }
 }
