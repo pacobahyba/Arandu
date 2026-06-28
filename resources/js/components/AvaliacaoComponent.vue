@@ -102,31 +102,39 @@
   <div class="avaliacao-painel avaliacao-painel-notas">
           <table border="1" cellpadding="8" style="background: #dde3f0; width: 100%; text-align: center;">
             <tr style="background: #d3daea;">
-              <td colspan="4" style="font-weight: bold;">NOTAS</td>
+              <td :colspan="isAluno ? 1 : 4" style="font-weight: bold;">NOTAS</td>
             </tr>
             <tr style="background: #f5f7fa;">
               <th>Est</th>
-              <th>Prof</th>
-              <th>Rec</th>
-              <th>CF</th>
+              <template v-if="!isAluno">
+                <th>Prof</th>
+                <th>Rec</th>
+                <th>CF</th>
+              </template>
             </tr>
             <tr id="linha1">
               <td id="media-conceituais">{{ mediaConceituais }}</td>
-              <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
-              <td>C</td>
-              <td id="media-cf-conceituais">{{ mediaCFConceituais }}</td>
+              <template v-if="!isAluno">
+                <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
+                <td>C</td>
+                <td id="media-cf-conceituais">{{ mediaCFConceituais }}</td>
+              </template>
             </tr>
             <tr id="linha2">
               <td id="media-atitudinais">{{ mediaAtitudinais }}</td>
-              <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
-              <td>A</td>
-              <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
+              <template v-if="!isAluno">
+                <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
+                <td>A</td>
+                <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
+              </template>
             </tr>
             <tr id="linha3">
               <td id="total-medias">{{ totalMedias }}</td>
-              <td id="total-prof-medias">{{ totalProfMedias }}</td>
-              <td>T</td>
-              <td id="total-cf-medias">{{ totalCFMedias }}</td>
+              <template v-if="!isAluno">
+                <td id="total-prof-medias">{{ totalProfMedias }}</td>
+                <td>T</td>
+                <td id="total-cf-medias">{{ totalCFMedias }}</td>
+              </template>
             </tr>
           </table>
           <div style="margin-top: 1em; font-size: 1.2em; font-weight: bold; text-align: center;">
@@ -156,9 +164,11 @@
               <th>#</th>
               <th>Objetivos Conceituais</th>
               <th>Est</th>
-              <th>Prof</th>
-              <th>Rec</th>
-              <th>CF</th>
+              <template v-if="!isAluno">
+                <th>Prof</th>
+                <th>Rec</th>
+                <th>CF</th>
+              </template>
             </tr>
           </thead>
           <tbody>
@@ -175,65 +185,73 @@
                     v-model="objetivo.est"
                     :max="10"
                     min="0"
+                    step="0.1"
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
+                    @wheel.prevent
                     @blur="salvarNotaEst(objetivo)"
                     :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Professor' ? true : perfilLogado === 'Aluno' ? false : false"
                   />
                 </template>
               </td>
-              <!-- Prof -->
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.prof }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.prof"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof')"
-                    @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
-              <!-- Remova o <td> referente a CP -->
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.rec }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.rec"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'rec')"
-                    @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.cf }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.cf"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="onCFChange(objetivo)"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
+              <template v-if="!isAluno">
+                <!-- Prof -->
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.prof }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.prof"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @input="onNotaProfRecInput(objetivo, 'prof')"
+                      @wheel.prevent
+                      @blur="salvarNotaProf(objetivo)"
+                      :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
+                    />
+                  </template>
+                </td>
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.rec }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.rec"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @input="onNotaProfRecInput(objetivo, 'rec')"
+                      @wheel.prevent
+                      @blur="salvarNotaRec(objetivo)"
+                      :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
+                    />
+                  </template>
+                </td>
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.cf }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.cf"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @wheel.prevent
+                      :disabled="true"
+                    />
+                  </template>
+                </td>
+              </template>
             </tr>
           </tbody>
         </table>
@@ -250,9 +268,11 @@
               <th>#</th>
               <th>Objetivos Atitudinais e Procedimentais</th>
               <th>Est</th>
-              <th>Prof</th>
-              <th>Rec</th>
-              <th>CF</th>
+              <template v-if="!isAluno">
+                <th>Prof</th>
+                <th>Rec</th>
+                <th>CF</th>
+              </template>
             </tr>
           </thead>
           <tbody>
@@ -269,65 +289,73 @@
                     v-model="objetivo.est"
                     :max="10"
                     min="0"
+                    step="0.1"
                     style="width: 50px;"
                     @input="limitarNota(objetivo, 'est')"
+                    @wheel.prevent
                     @blur="salvarNotaEst(objetivo)"
                     :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Professor' ? true : perfilLogado === 'Aluno' ? false : false"
                   />
                 </template>
               </td>
-              <!-- Prof -->
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.prof }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.prof"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'prof')"
-                    @blur="salvarNotaProf(objetivo)"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
-              <!-- Remova o <td> referente a CP -->
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.rec }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.rec"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'rec')"
-                    @blur="salvarNotaRec(objetivo)"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
-              <td>
-                <template v-if="periodoExpirado">
-                  {{ objetivo.cf }}
-                </template>
-                <template v-else>
-                  <input
-                    type="number"
-                    v-model="objetivo.cf"
-                    :max="10"
-                    min="0"
-                    style="width: 50px;"
-                    @input="limitarNota(objetivo, 'cf'); salvarNotaCF(objetivo);"
-                    :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
-                  />
-                </template>
-              </td>
+              <template v-if="!isAluno">
+                <!-- Prof -->
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.prof }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.prof"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @input="onNotaProfRecInput(objetivo, 'prof')"
+                      @wheel.prevent
+                      @blur="salvarNotaProf(objetivo)"
+                      :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
+                    />
+                  </template>
+                </td>
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.rec }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.rec"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @input="onNotaProfRecInput(objetivo, 'rec')"
+                      @wheel.prevent
+                      @blur="salvarNotaRec(objetivo)"
+                      :disabled="perfilLogado === 'Administrativo' || perfilLogado === 'Aluno'"
+                    />
+                  </template>
+                </td>
+                <td>
+                  <template v-if="periodoExpirado">
+                    {{ objetivo.cf }}
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      v-model="objetivo.cf"
+                      :max="10"
+                      min="0"
+                      step="0.1"
+                      style="width: 50px;"
+                      @wheel.prevent
+                      :disabled="true"
+                    />
+                  </template>
+                </td>
+              </template>
             </tr>
           </tbody>
         </table>
@@ -349,6 +377,7 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 
 const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
+const isAluno = computed(() => perfilLogado.value === 'Aluno')
 
 const materias = ref([])
 const materiaSelecionada = ref('')
@@ -718,8 +747,46 @@ async function carregarPorcentagens() {
 }
 
 function limitarNota(objetivo, campo) {
-  if (objetivo[campo] > 10) objetivo[campo] = 10
-  if (objetivo[campo] < 0 || objetivo[campo] === null) objetivo[campo] = 0
+  const valorBruto = objetivo[campo]
+
+  if (valorBruto === '' || valorBruto === null || valorBruto === undefined) {
+    objetivo[campo] = ''
+    return
+  }
+
+  const valorNumerico = Number(String(valorBruto).replace(',', '.'))
+  if (Number.isNaN(valorNumerico)) {
+    objetivo[campo] = ''
+    return
+  }
+
+  const limitado = Math.min(10, Math.max(0, valorNumerico))
+  objetivo[campo] = Number(limitado.toFixed(1))
+}
+
+function onNotaProfRecInput(objetivo, campo) {
+  limitarNota(objetivo, campo)
+  atualizarCFPorMaiorNota(objetivo)
+}
+
+function normalizarNotaParaCalculo(valor) {
+  if (valor === '' || valor === null || valor === undefined) return null
+  const numero = Number(String(valor).replace(',', '.'))
+  if (Number.isNaN(numero)) return null
+  return Math.min(10, Math.max(0, Number(numero.toFixed(1))))
+}
+
+function atualizarCFPorMaiorNota(objetivo) {
+  const prof = normalizarNotaParaCalculo(objetivo.prof)
+  const rec = normalizarNotaParaCalculo(objetivo.rec)
+  const notasValidas = [prof, rec].filter(nota => nota !== null)
+
+  if (!notasValidas.length) {
+    objetivo.cf = ''
+    return
+  }
+
+  objetivo.cf = Number(Math.max(...notasValidas).toFixed(1))
 }
 
 function atualizarCP(objetivo) {
@@ -775,6 +842,8 @@ async function salvarNotaEst(objetivo) {
 }
 
 async function salvarNotaProf(objetivo) {
+  atualizarCFPorMaiorNota(objetivo)
+
   try {
     await axios.post('/api/notas', {
       id_objetivo: objetivo.id_objetivo,
@@ -784,6 +853,7 @@ async function salvarNotaProf(objetivo) {
       periodo: periodoSelecionado.value,
       perfil: sessionStorage.getItem('perfil')
     })
+    await salvarNotaCF(objetivo)
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
       alert(e.response.data.message)
@@ -794,6 +864,8 @@ async function salvarNotaProf(objetivo) {
 }
 
 async function salvarNotaRec(objetivo) {
+  atualizarCFPorMaiorNota(objetivo)
+
   try {
     await axios.post('/api/notas', {
       id_objetivo: objetivo.id_objetivo,
@@ -803,6 +875,7 @@ async function salvarNotaRec(objetivo) {
       periodo: periodoSelecionado.value,
       perfil: sessionStorage.getItem('perfil')
     })
+    await salvarNotaCF(objetivo)
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
       alert(e.response.data.message)
@@ -884,6 +957,7 @@ async function carregarObjetivos() {
       obj.rec = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'Rec')?.nota ?? ''
       obj.cp  = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'CP')?.nota ?? ''
       obj.cf  = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'CF')?.nota ?? ''
+      atualizarCFPorMaiorNota(obj)
     })
 
     objetivos.value = objetivosArr
@@ -1070,13 +1144,7 @@ async function carregarNotas() {
   return Array.isArray(resp.data) ? resp.data : []
 }
 
-function onCFChange(objetivo) {
-  limitarNota(objetivo, 'cf')
-  salvarNotaCF(objetivo)
-}
-
-
-// Removido auto-salvamento: CF só é salvo via onCFChange
+// CF é derivado automaticamente do maior valor entre Prof e Rec.
 </script>
 
 <style>
@@ -1100,6 +1168,7 @@ function onCFChange(objetivo) {
 
 /* Desabilitar setas de incremento/decremento nos inputs number */
 input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield; /* Firefox */
 }
 input[type="number"]::-webkit-outer-spin-button,

@@ -61,6 +61,20 @@ Route::get('/objetivos', function(\Illuminate\Http\Request $request) {
     return $query->orderBy('id_objetivo')->get();
 });
 
+Route::get('/objetivos/turmas', function(\Illuminate\Http\Request $request) {
+    $turmas = \DB::table('objetivos')
+        ->select('id_turma')
+        ->where('id_materia', $request->id_materia)
+        ->where('periodo_objetivo', $request->trimestre)
+        ->where('ano_objetivo', $request->ano)
+        ->distinct()
+        ->orderBy('id_turma')
+        ->pluck('id_turma')
+        ->toArray();
+
+    return response()->json($turmas);
+});
+
 //Atualizando objetivos
 Route::put('/objetivos/{id}', function($id, \Illuminate\Http\Request $request) {
     return \DB::table('objetivos')

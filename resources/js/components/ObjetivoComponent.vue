@@ -144,7 +144,7 @@
                         width="25"
                         height="25"
                         viewBox="0 0 24 24"
-                        :fill="objetivosComAlunos.includes(objetivo.id_objetivo) ? '#FFD600' : '#555'"
+                        :fill="getCorBotaoObjetivo(objetivo)"
                       >
                         <circle cx="12" cy="8" r="4"/>
                         <path d="M4 20v-2c0-2.2 3.6-4 8-4s8 1.8 8 4v2"/>
@@ -196,7 +196,7 @@
                         width="25"
                         height="25"
                         viewBox="0 0 24 24"
-                        :fill="objetivosComAlunos.includes(objetivo.id_objetivo) ? '#FFD600' : '#555'"
+                        :fill="getCorBotaoObjetivo(objetivo)"
                       >
                         <circle cx="12" cy="8" r="4"/>
                         <path d="M4 20v-2c0-2.2 3.6-4 8-4s8 1.8 8 4v2"/>
@@ -225,25 +225,21 @@
             <table border="1" cellpadding="8" style="background: #f9f9f9; min-width: 400px;">
               <tr>
                 <td>
-                  <textarea v-model="novoObjetivoTexto" rows="2" style="width: 100%;"></textarea>
+                  <textarea
+                    v-model="novoObjetivoTexto"
+                    rows="2"
+                    style="width: 100%;"
+                    @keydown.ctrl.enter.prevent="salvarNovoObjetivo"
+                  ></textarea>
+                  <div style="margin-top: 0.4em; font-size: 0.9em; color: #666; text-align: left;">
+                    Pressione Control + Enter para gravar automaticamente o objetivo digitado e criar o próximo.
+                  </div>
                 </td>
                 <td>
                   <select v-model="novoObjetivoTipo" style="width: 120px;">
                     <option value="C">Conceitual</option>
                     <option value="A">Atitudinal</option>
                   </select>
-                  <span style="margin-left: 0.5em; vertical-align: middle;">
-                    <button
-                      class="atribuir-objetivo-btn"
-                      title="Atribuir objetivo a um aluno específico"
-                      @click="abrirModalAlunos(null)"
-                    >
-                      <svg width="25" height="25" viewBox="0 0 24 24" :fill="getCorBotaoAdaptado(null)">
-                        <circle cx="12" cy="8" r="4"/>
-                        <path d="M4 20v-2c0-2.2 3.6-4 8-4s8 1.8 8 4v2"/>
-                      </svg>
-                    </button>
-                  </span>
                 </td>
                 <td>
                   <button @click="salvarNovoObjetivo" :disabled="salvandoObjetivo">Salvar</button>
@@ -258,6 +254,53 @@
         style="margin-top: 2em; text-align: center;"
       >
         <button @click="imprimirObjetivos">Imprimir objetivos</button>
+      </div>
+
+      <div
+        class="painel-objetivos-passados"
+        v-if="materiaSelecionada && trimestreSelecionado"
+      >
+        <h3>Importar objetivos passados</h3>
+        <div class="filtros-passados">
+          <label for="ano-passado-select" class="avaliacao-label">Ano:</label>
+          <select
+            id="ano-passado-select"
+            v-model="anoPassadoSelecionado"
+            class="avaliacao-select combo-pequena"
+          >
+            <option value="">Selecione...</option>
+            <option v-for="ano in anosPassadosDisponiveis" :key="`passado-${ano}`" :value="ano">
+              {{ ano }}
+            </option>
+          </select>
+
+          <label for="trimestre-passado-select" class="avaliacao-label">Trimestre:</label>
+          <select
+            id="trimestre-passado-select"
+            v-model="trimestrePassadoSelecionado"
+            @change="carregarTurmasPassadas"
+            class="avaliacao-select combo-pequena"
+          >
+            <option value="">Selecione...</option>
+            <option value="1º Tri">1º Tri</option>
+            <option value="2º Tri">2º Tri</option>
+            <option value="3º Tri">3º Tri</option>
+          </select>
+
+          <label for="turma-passada-select" class="avaliacao-label">Turma:</label>
+          <select
+            id="turma-passada-select"
+            v-model="turmaPassadaSelecionada"
+            class="avaliacao-select combo-pequena"
+          >
+            <option value="">Selecione...</option>
+            <option v-for="turma in turmasPassadas" :key="`passada-${turma.id_turma}`" :value="turma.id_turma">
+              {{ turma.nome_turma }}
+            </option>
+          </select>
+
+          <button @click="abrirModalObjetivosPassados">Ver objetivos</button>
+        </div>
       </div>
       </div>
       
@@ -349,6 +392,70 @@
       <button @click="fecharModalAlunos" style="margin-top: 1em;">Fechar</button>
     </div>
   </div>
+
+  <div v-if="mostrarModalObjetivosPassados" class="modal-overlay">
+    <div class="modal-content modal-objetivos-passados">
+      <h3>Objetivos passados</h3>
+      <p style="margin-top: 0;">
+        Ano: <strong>{{ anoPassadoSelecionado }}</strong> | Trimestre: <strong>{{ trimestrePassadoSelecionado }}</strong>
+      </p>
+
+      <div v-if="carregandoObjetivosPassados" style="color: #666; margin: 1em 0;">
+        Carregando objetivos...
+      </div>
+
+      <div v-else>
+        <div v-if="erroObjetivosPassados" style="color: #b00020; margin: 1em 0;">
+          {{ erroObjetivosPassados }}
+        </div>
+
+        <div v-else>
+          <div style="margin-bottom: 1.2em;">
+            <h4 style="margin-bottom: 0.4em;">Objetivos Conceituais</h4>
+            <ol v-if="objetivosPassadosConceituais.length">
+              <li v-for="obj in objetivosPassadosConceituais" :key="`conceitual-passado-${obj.id_objetivo}`">
+                <label class="item-objetivo-passado">
+                  <input
+                    type="checkbox"
+                    v-model="objetivosPassadosSelecionados"
+                    :value="obj.id_objetivo"
+                  />
+                  <span>{{ obj.nome_objetivo }}</span>
+                </label>
+              </li>
+            </ol>
+            <p v-else style="color: #666;">Nenhum objetivo conceitual encontrado.</p>
+          </div>
+
+          <div>
+            <h4 style="margin-bottom: 0.4em;">Objetivos Atitudinais</h4>
+            <ol v-if="objetivosPassadosAtitudinais.length">
+              <li v-for="obj in objetivosPassadosAtitudinais" :key="`atitudinal-passado-${obj.id_objetivo}`">
+                <label class="item-objetivo-passado">
+                  <input
+                    type="checkbox"
+                    v-model="objetivosPassadosSelecionados"
+                    :value="obj.id_objetivo"
+                  />
+                  <span>{{ obj.nome_objetivo }}</span>
+                </label>
+              </li>
+            </ol>
+            <p v-else style="color: #666;">Nenhum objetivo atitudinal encontrado.</p>
+          </div>
+        </div>
+      </div>
+
+      <button
+        class="botao-adicionar-objetivos"
+        @click="adicionarObjetivosPassadosSelecionados"
+        :disabled="adicionandoObjetivosPassados"
+      >
+        {{ adicionandoObjetivosPassados ? 'Adicionando...' : 'Adicionar' }}
+      </button>
+      <button @click="fecharModalObjetivosPassados" style="margin-top: 1em;">Fechar</button>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -366,6 +473,17 @@ const trimestreSelecionado = ref('')
 const anosDisponiveis = ref([]);
 const anoAtual = new Date().getFullYear();
 const anoSelecionado = ref(anoAtual);
+const anoPassadoSelecionado = ref('')
+const trimestrePassadoSelecionado = ref('')
+const turmasPassadas = ref([])
+const turmaPassadaSelecionada = ref('')
+const mostrarModalObjetivosPassados = ref(false)
+const carregandoObjetivosPassados = ref(false)
+const adicionandoObjetivosPassados = ref(false)
+const erroObjetivosPassados = ref('')
+const objetivosPassadosConceituais = ref([])
+const objetivosPassadosAtitudinais = ref([])
+const objetivosPassadosSelecionados = ref([])
 const objetivos = ref([])
 const objetivosConceituais = ref([])
 const objetivosAtitudinais = ref([])
@@ -383,6 +501,8 @@ const carregandoAlunos = ref(false)
 const salvandoObjetivo = ref(false)
 const objetivosComAlunos = ref([]) // IDs dos objetivos que possuem alunos vinculados
 const objetivosExcluidos = ref([]) // IDs dos objetivos excluídos (ocultos) para alunos específicos
+const objetivosExcluidosPorObjetivo = ref({}) // Quantidade de alunos ocultos por objetivo
+const totalAlunosTurma = ref(0)
 const haAlunosMarcados = computed(() => alunosSelecionados.value.length > 0)
 const objetivoModal = ref(null) // Guarda o objetivo para o qual o modal está aberto
 const alunosSelecionadosNovoObjetivo = ref([]) // Para o painel de inserção
@@ -412,6 +532,14 @@ const dataExpiracao = ref('')
 // Recupera o perfil do usuário logado
 const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
 const nomeProfessorSessao = sessionStorage.getItem('nome') || ''
+
+const anosPassadosDisponiveis = computed(() => {
+  const anos = []
+  for (let ano = 2025; ano <= anoAtual; ano += 1) {
+    anos.push(ano)
+  }
+  return anos
+})
 
 async function carregarMaterias() {
   materias.value = []
@@ -740,7 +868,6 @@ async function salvarNovoObjetivo() {
 
     // Limpa campos e seleção
     novoObjetivoTexto.value = ''
-    novoObjetivoTipo.value = 'C'
     alunosSelecionados.value = []
   } catch (e) {
     alert('Erro ao salvar objetivo!')
@@ -816,6 +943,113 @@ async function carregarAnosObjetivos() {
   }
 }
 
+async function carregarTurmasPassadas() {
+  turmasPassadas.value = []
+  turmaPassadaSelecionada.value = ''
+
+  if (!materiaSelecionada.value || !trimestrePassadoSelecionado.value || !anoPassadoSelecionado.value) {
+    return
+  }
+
+  try {
+    const response = await axios.get('/api/objetivos/turmas', {
+      params: {
+        id_materia: materiaSelecionada.value,
+        trimestre: trimestrePassadoSelecionado.value,
+        ano: anoPassadoSelecionado.value
+      }
+    })
+
+    const idsTurmas = Array.isArray(response.data) ? response.data : []
+    if (!idsTurmas.length) {
+      turmasPassadas.value = []
+      return
+    }
+
+    const normalizarIdTurma = (valor) => {
+      if (valor == null) return ''
+      const texto = String(valor).trim()
+      if (!texto) return ''
+      const numero = Number(texto)
+      return Number.isNaN(numero) ? texto : String(numero)
+    }
+
+    const nomesPorId = new Map()
+
+    const tokenSophia = sessionStorage.getItem('tokenSophia')
+
+    // Busca o nome diretamente do endpoint detalhado do Sophia para cada ID.
+    const detalhesTurmas = await Promise.all(
+      idsTurmas.map(async (idTurma) => {
+        const chave = normalizarIdTurma(idTurma)
+        if (!chave) {
+          return { chave: '', nome: null }
+        }
+
+        try {
+          const detalheResp = await axios.get(
+            `https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Turmas/detalhada/${encodeURIComponent(chave)}`,
+            { headers: { Token: tokenSophia } }
+          )
+
+          const nome = detalheResp?.data?.nome
+          return {
+            chave,
+            nome: nome ? String(nome).trim() : null
+          }
+        } catch (e) {
+          return { chave, nome: null }
+        }
+      })
+    )
+
+    detalhesTurmas.forEach(({ chave, nome }) => {
+      if (chave && nome) {
+        nomesPorId.set(chave, nome)
+      }
+    })
+
+    // Fallback: aproveita os nomes já carregados na combo principal.
+    turmas.value.forEach((turma) => {
+      const chave = normalizarIdTurma(turma?.id_turma)
+      if (chave && turma?.nome_turma && !nomesPorId.has(chave)) {
+        nomesPorId.set(chave, turma.nome_turma)
+      }
+    })
+
+    if (['6', '11', '22', '26', '93'].includes(String(materiaSelecionada.value))) {
+      try {
+        const customResp = await axios.get('/api/turmas-customizadas', {
+          params: { id_disciplina_mae: materiaSelecionada.value }
+        })
+
+        if (Array.isArray(customResp.data)) {
+          customResp.data.forEach((turma) => {
+            const idCustom = turma.id ?? turma.id_turma_customizada
+            const chave = normalizarIdTurma(idCustom)
+            if (chave && turma?.nome_turma) {
+              nomesPorId.set(chave, `${turma.nome_turma} (Customizada)`)
+            }
+          })
+        }
+      } catch (e) {
+        console.error('Erro ao carregar nomes de turmas customizadas:', e)
+      }
+    }
+
+    turmasPassadas.value = idsTurmas.map((idTurma) => {
+      const chave = normalizarIdTurma(idTurma)
+      const nome = nomesPorId.get(chave)
+      return {
+        id_turma: idTurma,
+        nome_turma: nome || String(idTurma)
+      }
+    })
+  } catch (e) {
+    turmasPassadas.value = []
+  }
+}
+
 // Chame ao montar ou após selecionar matéria/turma, conforme sua lógica
 onMounted(() => {
   carregarProfessores().then(() => {
@@ -876,6 +1110,10 @@ watch([materiaSelecionada, turmaSelecionada, trimestreSelecionado], () => {
   alunosSelecionados.value = []
 })
 
+watch([materiaSelecionada, anoPassadoSelecionado, trimestrePassadoSelecionado], () => {
+  carregarTurmasPassadas()
+})
+
 watch([turmaSelecionada, trimestreSelecionado, anoSelecionado], async () => {
   if (turmaSelecionada.value && trimestreSelecionado.value && anoSelecionado.value) {
     await carregarObjetivos()
@@ -934,6 +1172,117 @@ function imprimirObjetivos() {
   win.document.close();
   win.focus();
   win.print();
+}
+
+async function abrirModalObjetivosPassados() {
+  if (!anoPassadoSelecionado.value || !trimestrePassadoSelecionado.value || !turmaPassadaSelecionada.value) {
+    alert('Selecione ano, trimestre e turma para visualizar os objetivos passados.')
+    return
+  }
+
+  if (!materiaSelecionada.value) {
+    alert('Selecione matéria antes de consultar objetivos passados.')
+    return
+  }
+
+  carregandoObjetivosPassados.value = true
+  erroObjetivosPassados.value = ''
+  objetivosPassadosConceituais.value = []
+  objetivosPassadosAtitudinais.value = []
+  objetivosPassadosSelecionados.value = []
+  mostrarModalObjetivosPassados.value = true
+
+  try {
+    const response = await axios.get('/api/objetivos', {
+      params: {
+        id_materia: materiaSelecionada.value,
+        turma_id: turmaPassadaSelecionada.value,
+        trimestre: trimestrePassadoSelecionado.value,
+        ano: anoPassadoSelecionado.value
+      }
+    })
+
+    const objetivosPassados = Array.isArray(response.data) ? response.data : []
+    objetivosPassadosConceituais.value = objetivosPassados.filter(obj => obj.tipo_objetivo === 'C')
+    objetivosPassadosAtitudinais.value = objetivosPassados.filter(obj => obj.tipo_objetivo === 'A')
+  } catch (e) {
+    erroObjetivosPassados.value = 'Não foi possível carregar os objetivos para este período.'
+  } finally {
+    carregandoObjetivosPassados.value = false
+  }
+}
+
+function fecharModalObjetivosPassados() {
+  mostrarModalObjetivosPassados.value = false
+  objetivosPassadosSelecionados.value = []
+}
+
+async function adicionarObjetivosPassadosSelecionados() {
+  if (adicionandoObjetivosPassados.value) return
+
+  if (!objetivosPassadosSelecionados.value.length) {
+    alert('Marque ao menos um objetivo para adicionar.')
+    return
+  }
+
+  if (!materiaSelecionada.value || !turmaSelecionada.value || !trimestreSelecionado.value || !anoSelecionado.value) {
+    alert('Selecione matéria, turma, trimestre e ano atuais antes de adicionar objetivos.')
+    return
+  }
+
+  const confirmarAdicao = confirm('Deseja adicionar os objetivos marcados à lista atual de objetivos?')
+  if (!confirmarAdicao) return
+
+  adicionandoObjetivosPassados.value = true
+
+  const idsSelecionados = new Set(objetivosPassadosSelecionados.value.map(id => String(id)))
+  const objetivosSelecionados = [
+    ...objetivosPassadosConceituais.value,
+    ...objetivosPassadosAtitudinais.value
+  ].filter(obj => idsSelecionados.has(String(obj.id_objetivo)))
+
+  if (!objetivosSelecionados.length) {
+    alert('Nenhum objetivo válido foi encontrado para adição.')
+    return
+  }
+
+  let adicionados = 0
+  let duplicados = 0
+  let erros = 0
+
+  try {
+    for (const objetivo of objetivosSelecionados) {
+      try {
+        const resp = await axios.post('/api/objetivos', {
+          nome_objetivo: objetivo.nome_objetivo,
+          tipo_objetivo: objetivo.tipo_objetivo,
+          id_materia: materiaSelecionada.value,
+          id_turma: turmaSelecionada.value,
+          periodo_objetivo: trimestreSelecionado.value,
+          ano_objetivo: anoSelecionado.value
+        })
+
+        if (resp?.data?.duplicado) {
+          duplicados += 1
+        } else {
+          adicionados += 1
+        }
+      } catch (e) {
+        erros += 1
+      }
+    }
+
+    await carregarObjetivos()
+    await carregarObjetivosAdaptados()
+    await carregarObjetivosExcluidos()
+
+    objetivosPassadosSelecionados.value = []
+
+    alert(`Processo concluído. Adicionados: ${adicionados}. Duplicados: ${duplicados}. Erros: ${erros}.`)
+    fecharModalObjetivosPassados()
+  } finally {
+    adicionandoObjetivosPassados.value = false
+  }
 }
 
 async function abrirModalAlunos(objetivo) {
@@ -1057,16 +1406,73 @@ async function carregarObjetivosAdaptados() {
 
 async function carregarObjetivosExcluidos() {
   try {
+    totalAlunosTurma.value = await obterTotalAlunosDaTurmaSelecionada()
+
     const resp = await axios.get('/api/objetivos-excluidos', {
       params: {
         turma_id: turmaSelecionada.value,
         ano: anoSelecionado.value
       }
     })
+
+    const registros = Array.isArray(resp.data) ? resp.data : []
+    const contagemPorObjetivo = {}
+
+    registros.forEach((item) => {
+      const idObjetivo = item?.id_objetivo
+      if (idObjetivo == null) return
+      contagemPorObjetivo[idObjetivo] = (contagemPorObjetivo[idObjetivo] || 0) + 1
+    })
+
+    objetivosExcluidosPorObjetivo.value = contagemPorObjetivo
     objetivosExcluidos.value = [...new Set(resp.data.map(o => o.id_objetivo))]
   } catch (e) {
+    objetivosExcluidosPorObjetivo.value = {}
+    totalAlunosTurma.value = 0
     objetivosExcluidos.value = []
   }
+}
+
+async function obterTotalAlunosDaTurmaSelecionada() {
+  if (!turmaSelecionada.value) return 0
+
+  const turmaObj = turmas.value.find(t => t.id_turma == turmaSelecionada.value)
+  const isCustomizada = turmaObj?.isCustomizada === true
+
+  if (['6', '11', '22', '26', '93'].includes(String(materiaSelecionada.value)) && isCustomizada) {
+    const resp = await axios.get(`/api/turmas-customizadas/${turmaSelecionada.value}/alunos`)
+    return Array.isArray(resp.data)
+      ? resp.data.filter(a => a.dt_fim == null).length
+      : 0
+  }
+
+  const resp = await axios.get(
+    'https://portal.sophia.com.br/SophiAWebApi/5494/api/v1/Alunos?Unidades=2&Cursos=20,7&Inativos=false&ConsiderarTurmaFinalizada=false',
+    { headers: { Token: sessionStorage.getItem('tokenSophia') } }
+  )
+
+  return Array.isArray(resp.data)
+    ? resp.data.filter(aluno =>
+        Array.isArray(aluno.turmas) &&
+        aluno.turmas.some(t => String(t.codigo) === String(turmaSelecionada.value))
+      ).length
+    : 0
+}
+
+function objetivoTemVisibilidadeParcial(idObjetivo) {
+  const total = totalAlunosTurma.value
+  const ocultos = objetivosExcluidosPorObjetivo.value[idObjetivo] || 0
+  return total > 0 && ocultos > 0 && ocultos < total
+}
+
+function getCorBotaoObjetivo(objetivo) {
+  if (objetivoTemVisibilidadeParcial(objetivo.id_objetivo)) {
+    return '#f9fb4a'
+  }
+  if (objetivosComAlunos.value.includes(objetivo.id_objetivo)) {
+    return '#FFD600'
+  }
+  return '#555'
 }
 
 function getCorBotaoAdaptado(objetivo) {
@@ -1219,6 +1625,30 @@ async function marcarTodosAlunos(estado) {
   max-width: 700px !important;
 }
 
+.modal-objetivos-passados {
+  max-width: 720px;
+}
+
+.painel-objetivos-passados {
+  margin-top: 2em;
+  padding: 1em;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.painel-objetivos-passados h3 {
+  margin-top: 0;
+  margin-bottom: 0.8em;
+}
+
+.filtros-passados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  align-items: center;
+}
+
 .modal-content h3 {
   margin-top: 0;
 }
@@ -1230,6 +1660,33 @@ async function marcarTodosAlunos(estado) {
 
 .modal-content li {
   margin: 0.5em 0;
+  text-align: left;
+}
+
+.item-objetivo-passado {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.botao-adicionar-objetivos {
+  margin-top: 1em;
+  margin-right: 0.7em;
+  background-color: #1f7a36;
+  border: 1px solid #166028;
+  color: #fff;
+  padding: 0.45em 0.9em;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.botao-adicionar-objetivos:hover {
+  background-color: #166028;
+}
+
+.botao-adicionar-objetivos:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>
 
