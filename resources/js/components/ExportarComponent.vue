@@ -13,19 +13,6 @@
           <option v-for="ano in anosDisponiveis" :key="ano" :value="ano">{{ ano }}</option>
         </select>
 
-        <label for="periodo-select" class="avaliacao-label">Período:</label>
-        <select
-          id="periodo-select"
-          v-model="periodoSelecionado"
-          class="avaliacao-select combo-pequena"
-          @change="aoMudarPeriodo"
-        >
-          <option value="">Selecione...</option>
-          <option value="1º Tri">1º Tri</option>
-          <option value="2º Tri">2º Tri</option>
-          <option value="3º Tri">3º Tri</option>
-        </select>
-
         <label for="materia-select" class="avaliacao-label">Matéria:</label>
         <select id="materia-select" v-model="materiaSelecionada" class="avaliacao-select" @change="carregarTurmas">
           <option value="">Selecione...</option>
@@ -46,6 +33,19 @@
           <option v-for="turma in turmas" :key="turma.id_turma" :value="turma.id_turma">
             {{ turma.nome_turma }}
           </option>
+        </select>
+
+        <!-- O período vem depois da turma: a lista depende do regime da turma -->
+        <label for="periodo-select" class="avaliacao-label">{{ substantivoPeriodo }}:</label>
+        <select
+          id="periodo-select"
+          v-model="periodoSelecionado"
+          class="avaliacao-select combo-pequena"
+          :disabled="!periodos.length"
+          @change="aoMudarPeriodo"
+        >
+          <option value="">Selecione...</option>
+          <option v-for="p in periodos" :key="p" :value="p">{{ p }}</option>
         </select>
 
         <button
@@ -115,6 +115,7 @@ import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { usePeriodos, origemDaTurma } from '../composables/usePeriodos'
 
 const perfilLogado = ref(sessionStorage.getItem('perfil') || '')
 
@@ -136,6 +137,12 @@ const mostrarTabela = ref(false)
 const carregandoTabela = ref(false)
 const exportandoPdf = ref(false)
 const erro = ref('')
+
+// Períodos válidos conforme o regime da turma selecionada.
+const origemTurma = computed(() => origemDaTurma(turmas, turmaSelecionada.value))
+const { periodos, substantivo: substantivoPeriodo } = usePeriodos(
+  anoSelecionado, turmaSelecionada, origemTurma, periodoSelecionado
+)
 
 const filtrosSelecionados = computed(() => {
   return Boolean(anoSelecionado.value && periodoSelecionado.value && materiaSelecionada.value && turmaSelecionada.value)
@@ -498,7 +505,7 @@ async function gerarTabelaExportacao() {
       params: {
         id_materia: idMateria,
         turma_id: turmaId,
-        trimestre: periodoSelecionado.value,
+        periodo: periodoSelecionado.value,
         ano: anoSelecionado.value
       }
     })

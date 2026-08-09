@@ -6,6 +6,7 @@ use App\Http\Controllers\SophiaAuthController;
 use App\Http\Controllers\ObjetivoController;
 use App\Http\Controllers\Auth\MagicLinkController;
 use App\Http\Controllers\PeriodoAvaliacaoController;
+use App\Http\Controllers\RegimeAvaliacaoController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\DB;
 
@@ -26,10 +27,13 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 //Listando objetivos
 Route::get('/objetivos', function(\Illuminate\Http\Request $request) {
+    // `trimestre` é o nome legado do parâmetro; `periodo` é o nome atual.
+    $periodo = $request->input('periodo', $request->input('trimestre'));
+
     $query = \DB::table('objetivos')
         ->where('id_materia', $request->id_materia)
         ->where('id_turma', $request->turma_id)
-        ->where('periodo_objetivo', $request->trimestre)
+        ->where('periodo_objetivo', $periodo)
         ->where('ano_objetivo', $request->ano);
 
     $idAluno = $request->id_aluno;
@@ -62,10 +66,12 @@ Route::get('/objetivos', function(\Illuminate\Http\Request $request) {
 });
 
 Route::get('/objetivos/turmas', function(\Illuminate\Http\Request $request) {
+    $periodo = $request->input('periodo', $request->input('trimestre'));
+
     $turmas = \DB::table('objetivos')
         ->select('id_turma')
         ->where('id_materia', $request->id_materia)
-        ->where('periodo_objetivo', $request->trimestre)
+        ->where('periodo_objetivo', $periodo)
         ->where('ano_objetivo', $request->ano)
         ->distinct()
         ->orderBy('id_turma')
@@ -224,6 +230,30 @@ Route::post('/periodos-avaliacao', [PeriodoAvaliacaoController::class, 'store'])
 // Rota para listagem de períodos de avaliação
 Route::get('/periodos-avaliacao', [PeriodoAvaliacaoController::class, 'showByPeriodo']);
 Route::put('/periodos-avaliacao/{id}', [PeriodoAvaliacaoController::class, 'update']);
+
+// Regimes de período (Trimestral / Bimestral / Semestral)
+Route::get('/regimes', [RegimeAvaliacaoController::class, 'catalogo']);
+Route::get('/regime-turma', [RegimeAvaliacaoController::class, 'daTurma']);
+Route::get('/regimes-avaliacao', [RegimeAvaliacaoController::class, 'index']);
+Route::post('/regimes-avaliacao', [RegimeAvaliacaoController::class, 'store']);
+Route::delete('/regimes-avaliacao/{id}', [RegimeAvaliacaoController::class, 'destroy']);
+
+// Períodos que realmente existem no histórico de objetivos de um ano.
+// Alimenta o seletor de "objetivos passados", que não deve depender do regime
+// configurado hoje (anos antigos podem ter usado outro).
+Route::get('/periodos-objetivos', function(\Illuminate\Http\Request $request) {
+    $periodos = \DB::table('objetivos')
+        ->select('periodo_objetivo')
+        ->where('ano_objetivo', $request->ano)
+        ->distinct()
+        ->orderBy('periodo_objetivo')
+        ->pluck('periodo_objetivo')
+        ->filter()
+        ->values()
+        ->toArray();
+
+    return response()->json($periodos);
+});
 
 // Rota para checar email
 Route::post('/checar-email', [MagicLinkController::class, 'checarEmail']);
@@ -527,12 +557,7 @@ Route::get('/turmas-alunos-customizados', function(\Illuminate\Http\Request $req
     return response()->json($rows);
 });
 
-Route::get('/periodos-avaliacao', function(\Illuminate\Http\Request $request) {
-    $periodo = \DB::table('periodos_avaliacao')
-        ->where('ano', $request->ano)
-        ->where('periodo', $request->periodo)
-        ->first();
-    
-    return response()->json($periodo);
-});
+// A closure duplicada de GET /periodos-avaliacao que existia aqui sobrescrevia
+// a rota registrada acima, tornando PeriodoAvaliacaoController::showByPeriodo
+// código morto. Removida: o controller agora resolve o override por turma.
 

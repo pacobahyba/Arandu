@@ -27,18 +27,16 @@
           </select>
         </div>
 
-        <div class="trimestre-ano" v-if="turmaSelecionada">
-          <label for="trimestre-select" class="avaliacao-label">Trimestre:</label>
+        <div class="periodo-ano" v-if="turmaSelecionada">
+          <label for="periodo-select" class="avaliacao-label">{{ substantivoPeriodo }}:</label>
           <select
-            id="trimestre-select"
-            v-model="trimestreSelecionado"
+            id="periodo-select"
+            v-model="periodoSelecionado"
             @change="carregarObjetivos"
             class="avaliacao-select combo-pequena"
           >
             <option value="">Selecione...</option>
-            <option value="1º Tri">1º Tri</option>
-            <option value="2º Tri">2º Tri</option>
-            <option value="3º Tri">3º Tri</option>
+            <option v-for="p in periodos" :key="p" :value="p">{{ p }}</option>
           </select>
 
           <label for="ano-select" class="avaliacao-label">Ano:</label>
@@ -54,9 +52,21 @@
         <!-- Aviso de período expirado -->
         <div v-if="periodoExpirado" style="margin-top: 1em; padding: 1em; background-color: #ffcccc; border: 2px solid #cc0000; border-radius: 5px; color: #cc0000; font-weight: bold;">
           ⚠️ O período de cadastro de objetivos expirou em {{ dataExpiracao }}.
+          <template v-if="anoSelecionado !== anoAtual">
+            Use o painel "Importar objetivos passados" abaixo para consultar os objetivos deste período.
+          </template>
         </div>
 
-        <div v-if="turmaSelecionada && trimestreSelecionado" style="margin-top:2em;">
+        <!-- Anos passados: a turma do topo é do ano letivo atual, e o ID de turma muda a
+             cada ano no Sophia, então essa busca nunca encontraria os objetivos antigos. -->
+        <div
+          v-if="turmaSelecionada && periodoSelecionado && anoSelecionado !== anoAtual"
+          style="margin-top:2em; padding: 1em; background-color: #f5f5f5; border-radius: 5px; color: #555;"
+        >
+          Para consultar os objetivos deste período, use o painel "Importar objetivos passados" abaixo e clique em "Visualizar".
+        </div>
+
+        <div v-if="turmaSelecionada && periodoSelecionado && anoSelecionado === anoAtual" style="margin-top:2em;">
           <table border="1" cellpadding="5" style="background: #f5f5f5; width: 400px;">
             <thead>
               <tr>
@@ -250,7 +260,7 @@
         </div>
         <!-- Botão Imprimir objetivos apenas para perfil Administrativo -->
       <div
-        v-if="perfilLogado === 'Administrativo' && materiaSelecionada && turmaSelecionada && trimestreSelecionado"
+        v-if="perfilLogado === 'Administrativo' && materiaSelecionada && turmaSelecionada && periodoSelecionado && anoSelecionado === anoAtual"
         style="margin-top: 2em; text-align: center;"
       >
         <button @click="imprimirObjetivos">Imprimir objetivos</button>
@@ -258,7 +268,7 @@
 
       <div
         class="painel-objetivos-passados"
-        v-if="materiaSelecionada && trimestreSelecionado"
+        v-if="materiaSelecionada && periodoSelecionado"
       >
         <h3>Importar objetivos passados</h3>
         <div class="filtros-passados">
@@ -274,17 +284,15 @@
             </option>
           </select>
 
-          <label for="trimestre-passado-select" class="avaliacao-label">Trimestre:</label>
+          <label for="periodo-passado-select" class="avaliacao-label">Período:</label>
           <select
-            id="trimestre-passado-select"
-            v-model="trimestrePassadoSelecionado"
+            id="periodo-passado-select"
+            v-model="periodoPassadoSelecionado"
             @change="carregarTurmasPassadas"
             class="avaliacao-select combo-pequena"
           >
             <option value="">Selecione...</option>
-            <option value="1º Tri">1º Tri</option>
-            <option value="2º Tri">2º Tri</option>
-            <option value="3º Tri">3º Tri</option>
+            <option v-for="p in periodosPassados" :key="p" :value="p">{{ p }}</option>
           </select>
 
           <label for="turma-passada-select" class="avaliacao-label">Turma:</label>
@@ -299,7 +307,8 @@
             </option>
           </select>
 
-          <button @click="abrirModalObjetivosPassados">Ver objetivos</button>
+          <button v-if="!periodoExpirado" @click="abrirModalObjetivosPassados(false)">Ver objetivos</button>
+          <button @click="abrirModalObjetivosPassados(true)">Visualizar</button>
         </div>
       </div>
       </div>
@@ -397,7 +406,7 @@
     <div class="modal-content modal-objetivos-passados">
       <h3>Objetivos passados</h3>
       <p style="margin-top: 0;">
-        Ano: <strong>{{ anoPassadoSelecionado }}</strong> | Trimestre: <strong>{{ trimestrePassadoSelecionado }}</strong>
+        Ano: <strong>{{ anoPassadoSelecionado }}</strong> | Período: <strong>{{ periodoPassadoSelecionado }}</strong>
       </p>
 
       <div v-if="carregandoObjetivosPassados" style="color: #666; margin: 1em 0;">
@@ -414,7 +423,7 @@
             <h4 style="margin-bottom: 0.4em;">Objetivos Conceituais</h4>
             <ol v-if="objetivosPassadosConceituais.length">
               <li v-for="obj in objetivosPassadosConceituais" :key="`conceitual-passado-${obj.id_objetivo}`">
-                <label class="item-objetivo-passado">
+                <label v-if="!modoSomenteLeitura" class="item-objetivo-passado">
                   <input
                     type="checkbox"
                     v-model="objetivosPassadosSelecionados"
@@ -422,6 +431,7 @@
                   />
                   <span>{{ obj.nome_objetivo }}</span>
                 </label>
+                <span v-else>{{ obj.nome_objetivo }}</span>
               </li>
             </ol>
             <p v-else style="color: #666;">Nenhum objetivo conceitual encontrado.</p>
@@ -431,7 +441,7 @@
             <h4 style="margin-bottom: 0.4em;">Objetivos Atitudinais</h4>
             <ol v-if="objetivosPassadosAtitudinais.length">
               <li v-for="obj in objetivosPassadosAtitudinais" :key="`atitudinal-passado-${obj.id_objetivo}`">
-                <label class="item-objetivo-passado">
+                <label v-if="!modoSomenteLeitura" class="item-objetivo-passado">
                   <input
                     type="checkbox"
                     v-model="objetivosPassadosSelecionados"
@@ -439,6 +449,7 @@
                   />
                   <span>{{ obj.nome_objetivo }}</span>
                 </label>
+                <span v-else>{{ obj.nome_objetivo }}</span>
               </li>
             </ol>
             <p v-else style="color: #666;">Nenhum objetivo atitudinal encontrado.</p>
@@ -447,6 +458,7 @@
       </div>
 
       <button
+        v-if="!modoSomenteLeitura"
         class="botao-adicionar-objetivos"
         @click="adicionarObjetivosPassadosSelecionados"
         :disabled="adicionandoObjetivosPassados"
@@ -462,6 +474,12 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
+import {
+  usePeriodos,
+  usePeriodoExpirado,
+  usePeriodosHistoricos,
+  origemDaTurma
+} from '../composables/usePeriodos'
 
 const auth = useAuthStore()
 
@@ -469,15 +487,16 @@ const materias = ref([])
 const materiaSelecionada = ref('')
 const turmas = ref([])
 const turmaSelecionada = ref('')
-const trimestreSelecionado = ref('')
+const periodoSelecionado = ref('')
 const anosDisponiveis = ref([]);
 const anoAtual = new Date().getFullYear();
 const anoSelecionado = ref(anoAtual);
 const anoPassadoSelecionado = ref('')
-const trimestrePassadoSelecionado = ref('')
+const periodoPassadoSelecionado = ref('')
 const turmasPassadas = ref([])
 const turmaPassadaSelecionada = ref('')
 const mostrarModalObjetivosPassados = ref(false)
+const modoSomenteLeitura = ref(false)
 const carregandoObjetivosPassados = ref(false)
 const adicionandoObjetivosPassados = ref(false)
 const erroObjetivosPassados = ref('')
@@ -525,9 +544,23 @@ const alunosSelecionadosModal = computed({
 });
 const modalEditando = ref(false)
 
+// Origem da turma ('S' Sophia / 'C' customizada): o mesmo id_turma pode existir
+// nas duas fontes, então o regime e o calendário precisam do discriminador.
+const origemTurma = computed(() => origemDaTurma(turmas, turmaSelecionada.value))
+
+// Períodos válidos para a turma selecionada, conforme o regime do ano.
+const { periodos, substantivo: substantivoPeriodo } = usePeriodos(
+  anoSelecionado, turmaSelecionada, origemTurma, periodoSelecionado
+)
+
+// O seletor de objetivos passados usa os períodos que existem no histórico,
+// e não o regime configurado hoje — anos antigos podem ter usado outro.
+const { periodos: periodosPassados } = usePeriodosHistoricos(anoPassadoSelecionado)
+
 // Controle de período expirado
-const periodoExpirado = ref(false)
-const dataExpiracao = ref('')
+const { periodoExpirado, dataExpiracao, verificarPeriodo } = usePeriodoExpirado(
+  anoSelecionado, periodoSelecionado, turmaSelecionada, origemTurma
+)
 
 // Recupera o perfil do usuário logado
 const perfilLogado = ref(sessionStorage.getItem('perfil') || 'Não definido')
@@ -546,7 +579,7 @@ async function carregarMaterias() {
   materiaSelecionada.value = ''
   turmas.value = []
   turmaSelecionada.value = ''
-  trimestreSelecionado.value = ''
+  periodoSelecionado.value = ''
   objetivos.value = []
   objetivosConceituais.value = []
   objetivosAtitudinais.value = []
@@ -608,7 +641,7 @@ async function carregarMaterias() {
 async function carregarTurmas() {
   turmas.value = []
   turmaSelecionada.value = ''
-  trimestreSelecionado.value = ''
+  periodoSelecionado.value = ''
   objetivos.value = []
   objetivosConceituais.value = []
   objetivosAtitudinais.value = []
@@ -691,10 +724,10 @@ async function carregarObjetivos() {
   objetivos.value = []
   objetivosConceituais.value = []
   objetivosAtitudinais.value = []
-  if (!turmaSelecionada.value || !trimestreSelecionado.value || !anoSelecionado.value) return
+  if (!turmaSelecionada.value || !periodoSelecionado.value || !anoSelecionado.value) return
   try {
     const response = await axios.get(
-      `/api/objetivos?id_materia=${materiaSelecionada.value}&turma_id=${turmaSelecionada.value}&trimestre=${trimestreSelecionado.value}&ano=${anoSelecionado.value}`
+      `/api/objetivos?id_materia=${materiaSelecionada.value}&turma_id=${turmaSelecionada.value}&periodo=${periodoSelecionado.value}&ano=${anoSelecionado.value}`
     )
     objetivos.value = response.data.map(obj => ({
       ...obj,
@@ -714,13 +747,13 @@ async function carregarObjetivos() {
 }
 
 async function carregarPorcentagens() {
-  if (!materiaSelecionada.value || !turmaSelecionada.value || !trimestreSelecionado.value || !anoSelecionado.value) return
+  if (!materiaSelecionada.value || !turmaSelecionada.value || !periodoSelecionado.value || !anoSelecionado.value) return
   try {
     const response = await axios.get('/api/porcentagem-objetivos', {
       params: {
         id_materia: materiaSelecionada.value,
         id_turma: turmaSelecionada.value,
-        periodo: trimestreSelecionado.value,
+        periodo: periodoSelecionado.value,
         ano: anoSelecionado.value // <-- Adicione este parâmetro!
       }
     })
@@ -820,7 +853,7 @@ function salvarPorcentagem() {
   axios.post('/api/porcentagem-objetivos', {
     id_materia: materiaSelecionada.value,
     id_turma: turmaSelecionada.value,
-    periodo: trimestreSelecionado.value,
+    periodo: periodoSelecionado.value,
     porcentagem_conceitual: porcentagemConceituais.value,
     porcentagem_atitudinal: porcentagemAtitudinais.value,
     ano: anoSelecionado.value, // <- garantir que atualiza o mesmo registro
@@ -836,8 +869,8 @@ async function salvarNovoObjetivo() {
     alert('Digite o objetivo.')
     return
   }
-  if (!materiaSelecionada.value || !turmaSelecionada.value || !trimestreSelecionado.value) {
-    alert('Selecione matéria, turma e trimestre.')
+  if (!materiaSelecionada.value || !turmaSelecionada.value || !periodoSelecionado.value) {
+    alert('Selecione matéria, turma e período.')
     return
   }
   try {
@@ -847,7 +880,7 @@ async function salvarNovoObjetivo() {
       tipo_objetivo: novoObjetivoTipo.value,
       id_materia: materiaSelecionada.value,
       id_turma: turmaSelecionada.value,
-      periodo_objetivo: trimestreSelecionado.value,
+      periodo_objetivo: periodoSelecionado.value,
       ano_objetivo: anoSelecionado.value
     })
     const idObjetivoCriado = resp.data.id_objetivo // Certifique-se que a API retorna o id do objetivo criado
@@ -947,7 +980,7 @@ async function carregarTurmasPassadas() {
   turmasPassadas.value = []
   turmaPassadaSelecionada.value = ''
 
-  if (!materiaSelecionada.value || !trimestrePassadoSelecionado.value || !anoPassadoSelecionado.value) {
+  if (!materiaSelecionada.value || !periodoPassadoSelecionado.value || !anoPassadoSelecionado.value) {
     return
   }
 
@@ -955,7 +988,7 @@ async function carregarTurmasPassadas() {
     const response = await axios.get('/api/objetivos/turmas', {
       params: {
         id_materia: materiaSelecionada.value,
-        trimestre: trimestrePassadoSelecionado.value,
+        periodo: periodoPassadoSelecionado.value,
         ano: anoPassadoSelecionado.value
       }
     })
@@ -1060,39 +1093,8 @@ onMounted(() => {
   carregarAnosObjetivos()
 })
 
-async function verificarPeriodo() {
-  periodoExpirado.value = false
-  dataExpiracao.value = ''
-  
-  if (!trimestreSelecionado.value || !anoSelecionado.value) {
-    return
-  }
-  
-  try {
-    const resp = await axios.get('/api/periodos-avaliacao', {
-      params: {
-        ano: anoSelecionado.value,
-        periodo: trimestreSelecionado.value
-      }
-    })
-    
-    if (resp.data && resp.data.dt_ultimo_dia) {
-      const dataFim = new Date(resp.data.dt_ultimo_dia)
-      const hoje = new Date()
-      hoje.setHours(0, 0, 0, 0)
-      
-      if (hoje > dataFim) {
-        periodoExpirado.value = true
-        dataExpiracao.value = dataFim.toLocaleDateString('pt-BR')
-      }
-    }
-  } catch (e) {
-    console.error('Erro ao verificar período:', e)
-  }
-}
-
 watch(turmaSelecionada, (novaTurma) => {
-  if (novaTurma && materiaSelecionada.value && trimestreSelecionado.value && anoSelecionado.value) {
+  if (novaTurma && materiaSelecionada.value && periodoSelecionado.value && anoSelecionado.value) {
     carregarObjetivos()
     carregarPorcentagens()
   }
@@ -1101,21 +1103,21 @@ watch(turmaSelecionada, (novaTurma) => {
 });
 
 watch(anoSelecionado, (novoAno) => {
-  if (materiaSelecionada.value && turmaSelecionada.value && trimestreSelecionado.value && novoAno) {
+  if (materiaSelecionada.value && turmaSelecionada.value && periodoSelecionado.value && novoAno) {
     carregarObjetivos()
   }
 })
 
-watch([materiaSelecionada, turmaSelecionada, trimestreSelecionado], () => {
+watch([materiaSelecionada, turmaSelecionada, periodoSelecionado], () => {
   alunosSelecionados.value = []
 })
 
-watch([materiaSelecionada, anoPassadoSelecionado, trimestrePassadoSelecionado], () => {
+watch([materiaSelecionada, anoPassadoSelecionado, periodoPassadoSelecionado], () => {
   carregarTurmasPassadas()
 })
 
-watch([turmaSelecionada, trimestreSelecionado, anoSelecionado], async () => {
-  if (turmaSelecionada.value && trimestreSelecionado.value && anoSelecionado.value) {
+watch([turmaSelecionada, periodoSelecionado, anoSelecionado], async () => {
+  if (turmaSelecionada.value && periodoSelecionado.value && anoSelecionado.value) {
     await carregarObjetivos()
     await carregarObjetivosAdaptados()
     await carregarObjetivosExcluidos()
@@ -1127,7 +1129,7 @@ function imprimirObjetivos() {
   // Busca os nomes selecionados
   const materia = materias.value.find(m => m.id_materia == materiaSelecionada.value);
   const turma = turmas.value.find(t => t.id_turma == turmaSelecionada.value);
-  const periodo = trimestreSelecionado.value;
+  const periodo = periodoSelecionado.value;
 
   let html = `
     <div style="margin-bottom:2em;">
@@ -1174,9 +1176,9 @@ function imprimirObjetivos() {
   win.print();
 }
 
-async function abrirModalObjetivosPassados() {
-  if (!anoPassadoSelecionado.value || !trimestrePassadoSelecionado.value || !turmaPassadaSelecionada.value) {
-    alert('Selecione ano, trimestre e turma para visualizar os objetivos passados.')
+async function abrirModalObjetivosPassados(somenteLeitura = false) {
+  if (!anoPassadoSelecionado.value || !periodoPassadoSelecionado.value || !turmaPassadaSelecionada.value) {
+    alert('Selecione ano, período e turma para visualizar os objetivos passados.')
     return
   }
 
@@ -1185,6 +1187,7 @@ async function abrirModalObjetivosPassados() {
     return
   }
 
+  modoSomenteLeitura.value = somenteLeitura
   carregandoObjetivosPassados.value = true
   erroObjetivosPassados.value = ''
   objetivosPassadosConceituais.value = []
@@ -1197,7 +1200,7 @@ async function abrirModalObjetivosPassados() {
       params: {
         id_materia: materiaSelecionada.value,
         turma_id: turmaPassadaSelecionada.value,
-        trimestre: trimestrePassadoSelecionado.value,
+        periodo: periodoPassadoSelecionado.value,
         ano: anoPassadoSelecionado.value
       }
     })
@@ -1214,6 +1217,7 @@ async function abrirModalObjetivosPassados() {
 
 function fecharModalObjetivosPassados() {
   mostrarModalObjetivosPassados.value = false
+  modoSomenteLeitura.value = false
   objetivosPassadosSelecionados.value = []
 }
 
@@ -1225,8 +1229,8 @@ async function adicionarObjetivosPassadosSelecionados() {
     return
   }
 
-  if (!materiaSelecionada.value || !turmaSelecionada.value || !trimestreSelecionado.value || !anoSelecionado.value) {
-    alert('Selecione matéria, turma, trimestre e ano atuais antes de adicionar objetivos.')
+  if (!materiaSelecionada.value || !turmaSelecionada.value || !periodoSelecionado.value || !anoSelecionado.value) {
+    alert('Selecione matéria, turma, período e ano atuais antes de adicionar objetivos.')
     return
   }
 
@@ -1258,7 +1262,7 @@ async function adicionarObjetivosPassadosSelecionados() {
           tipo_objetivo: objetivo.tipo_objetivo,
           id_materia: materiaSelecionada.value,
           id_turma: turmaSelecionada.value,
-          periodo_objetivo: trimestreSelecionado.value,
+          periodo_objetivo: periodoSelecionado.value,
           ano_objetivo: anoSelecionado.value
         })
 

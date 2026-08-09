@@ -10,20 +10,6 @@
         <option v-for="ano in anosDisponiveis" :key="ano" :value="ano">{{ ano }}</option>
       </select>
 
-      <label for="periodo-select" class="avaliacao-label">Período:</label>
-      <select id="periodo-select" v-model="periodoSelecionado" class="avaliacao-select" style="width: 120px;" @change="carregarMaterias">
-        <option value="">Selecione...</option>
-        <option value="1º Tri">1º Tri</option>
-        <option value="2º Tri">2º Tri</option>
-        <option value="3º Tri">3º Tri</option>
-      </select>
-      <br /><br />
-
-      <!-- Aviso de período expirado (só após seleção de ano e período) -->
-      <div v-if="anoSelecionado && periodoSelecionado && periodoExpirado" style="margin: 0.5em 0 1em; padding: 1em; background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; color: #856404; font-weight: bold;">
-        ⚠️ O período de avaliação expirou em {{ dataExpiracao }}.
-      </div>
-
       <label for="materia-select" class="avaliacao-label">Matéria:</label>
       <select id="materia-select" v-model="materiaSelecionada" @change="carregarTurmas" class="avaliacao-select">
         <option value="">Selecione...</option>
@@ -57,6 +43,25 @@
         </select>
         <br /><br />
       </template>
+
+      <!-- O período vem depois da turma: a lista depende do regime da turma -->
+      <label for="periodo-select" class="avaliacao-label">{{ substantivoPeriodo }}:</label>
+      <select
+        id="periodo-select"
+        v-model="periodoSelecionado"
+        class="avaliacao-select"
+        style="width: 120px;"
+        :disabled="!periodos.length"
+      >
+        <option value="">Selecione...</option>
+        <option v-for="p in periodos" :key="p" :value="p">{{ p }}</option>
+      </select>
+      <br /><br />
+
+      <!-- Aviso de período expirado (só após seleção de ano e período) -->
+      <div v-if="anoSelecionado && periodoSelecionado && periodoExpirado" style="margin: 0.5em 0 1em; padding: 1em; background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; color: #856404; font-weight: bold;">
+        ⚠️ O período de avaliação expirou em {{ dataExpiracao }}.
+      </div>
 
       <button
         :disabled="!todasSelecionadas"
@@ -373,6 +378,7 @@
 import { ref, computed, onMounted, watch, watchEffect } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
+import { usePeriodos, usePeriodoExpirado, origemDaTurma } from '../composables/usePeriodos'
 
 const auth = useAuthStore()
 
@@ -395,9 +401,20 @@ const anosDisponiveis = ref([])
 const anoSelecionado = ref(new Date().getFullYear())
 const idDisciplinaMae = ref(null) // Armazena id_disciplina_mae para turmas customizadas
 
+// Origem da turma ('S' Sophia / 'C' customizada) — o mesmo id_turma pode existir
+// nas duas fontes, então regime e calendário precisam do discriminador.
+const origemTurma = computed(() => origemDaTurma(turmas, turmaSelecionada.value))
+
+// Períodos válidos conforme o regime da turma (ou o padrão do ano, se ainda
+// não houver turma selecionada).
+const { periodos, substantivo: substantivoPeriodo } = usePeriodos(
+  anoSelecionado, turmaSelecionada, origemTurma, periodoSelecionado
+)
+
 // Controle de período expirado
-const periodoExpirado = ref(false)
-const dataExpiracao = ref('')
+const { periodoExpirado, dataExpiracao, verificarPeriodo } = usePeriodoExpirado(
+  anoSelecionado, periodoSelecionado, turmaSelecionada, origemTurma
+)
 
 const mediaConceituais = computed(() => {
   const objetivosC = objetivos.value.filter(o => o.tipo_objetivo === 'C')
@@ -574,7 +591,8 @@ async function carregarTurmas() {
       turmas.value = Array.isArray(resp.data)
         ? resp.data.map(t => ({
             id_turma: t.id ?? t.id_turma ?? turmaId,
-            nome_turma: t.nome_turma
+            nome_turma: t.nome_turma,
+            isCustomizada: true
           }))
         : [];
       // Armazena id_disciplina_mae para uso posterior
@@ -940,7 +958,7 @@ async function carregarObjetivos() {
       params: {
         id_materia: idMateria,
         turma_id: turmaId,
-        trimestre: periodoSelecionado.value,
+        periodo: periodoSelecionado.value,
         ano: anoSelecionado.value,
         id_aluno: alunoSelecionado.value || null
       }
@@ -1036,44 +1054,6 @@ onMounted(() => {
   
   carregarMaterias()
   carregarAnosObjetivos()
-})
-
-async function verificarPeriodo() {
-  periodoExpirado.value = false
-  dataExpiracao.value = ''
-
-  if (!anoSelecionado.value || !periodoSelecionado.value) return
-
-  try {
-    const resp = await axios.get('/api/periodos-avaliacao', {
-      params: {
-        ano: anoSelecionado.value,
-        periodo: periodoSelecionado.value
-      }
-    })
-
-    if (resp.data && resp.data.dt_ultimo_dia) {
-      const dataFim = new Date(resp.data.dt_ultimo_dia)
-      const hoje = new Date()
-      hoje.setHours(0, 0, 0, 0)
-      if (hoje > dataFim) {
-        periodoExpirado.value = true
-        dataExpiracao.value = dataFim.toLocaleDateString('pt-BR')
-      }
-    }
-  } catch (e) {
-    // silencio: se não encontrar, mantém não expirado
-  }
-}
-
-// Dispara verificação ao trocar ano ou período (após seleção)
-watch([anoSelecionado, periodoSelecionado], async ([ano, periodo]) => {
-  if (ano && periodo) {
-    await verificarPeriodo()
-  } else {
-    periodoExpirado.value = false
-    dataExpiracao.value = ''
-  }
 })
 
 async function aoAvaliar() {

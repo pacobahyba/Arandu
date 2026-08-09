@@ -142,6 +142,6 @@ class AuthController extends Controller
         \DB::table('usuarios')->where('email', $email)->update(['verificado' => 1]);
 
         // Você pode retornar uma view ou mensagem simples
-        return response('Senha confirmada e conta verificada com sucesso! Agora você pode fazer login.<br><a href="/login">Ir para login</a>', 200);
+        return response('Senha confirmada e conta verificada com sucesso! Agora você pode fazer login.<br><a href="/">Ir para login</a>', 200);
     }
 }

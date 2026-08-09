@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // A tabela `usuarios` foi criada à mão no banco de produção e nunca teve
+        // migration de criação. Sem esta guarda, migrar um banco novo (ou o
+        // sqlite dos testes) quebra aqui.
+        if (! Schema::hasTable('usuarios') || Schema::hasColumn('usuarios', 'verificado')) {
+            return;
+        }
+
         Schema::table('usuarios', function (Blueprint $table) {
             $table->boolean('verificado')->default(0);
         });
@@ -21,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('usuarios')) {
+            return;
+        }
+
         Schema::table('usuarios', function (Blueprint $table) {
             $table->dropColumn('verificado');
         });
