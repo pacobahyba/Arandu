@@ -57,6 +57,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Proxies reversos confiáveis ("*" ou lista separada por vírgula).
+    // Usado por App\Http\Middleware\TrustProxies.
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
     'asset_url' => env('ASSET_URL'),
 
     /*

@@ -63,6 +63,13 @@
                 Avaliação
               </button>
               <button
+                v-if="perfilLogado === 'Professor'"
+                :class="{ ativo: paginaAtual === 'liberacao-notas' }"
+                @click="paginaAtual = 'liberacao-notas'"
+              >
+                Liberar notas
+              </button>
+              <button
                   v-if="perfilLogado === 'Administrativo' || perfilLogado === 'Professor'"
                 :class="{ ativo: paginaAtual === 'exportar' }"
                 @click="paginaAtual = 'exportar'"
@@ -106,6 +113,9 @@
             <div v-else-if="paginaAtual === 'exportar'">
               <ExportarComponent />
             </div>
+            <div v-else-if="paginaAtual === 'liberacao-notas'">
+              <LiberacaoNotasComponent />
+            </div>
             <div v-else-if="paginaAtual === 'opcoes'">
               <OpcoesComponent />
             </div>
@@ -131,6 +141,7 @@ import LoginComponent from './components/LoginComponent.vue'
 import PeriodosComponent from './components/PeriodosComponent.vue'
 import TurmasCustomizadasComponent from './components/TurmasCustomizadasComponent.vue'
 import ExportarComponent from './components/ExportarComponent.vue'
+import LiberacaoNotasComponent from './components/LiberacaoNotasComponent.vue'
 import OpcoesComponent from './components/OpcoesComponent.vue'
 
 // Estado da aplicação

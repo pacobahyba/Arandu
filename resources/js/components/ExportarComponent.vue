@@ -335,11 +335,12 @@ async function carregarAlunos() {
   }
 }
 
-async function carregarNotasAluno(idAluno) {
+async function carregarNotasAlunos(idsAlunos) {
+  if (!idsAlunos.length) return []
   try {
-    const resp = await axios.get('/api/notas', {
+    const resp = await axios.get('/api/notas/lote', {
       params: {
-        id_aluno: idAluno,
+        alunos: idsAlunos,
         periodo: periodoSelecionado.value
       }
     })
@@ -517,20 +518,14 @@ async function gerarTabelaExportacao() {
       return
     }
 
-    const notasPorAluno = await Promise.all(
-      alunos.value.map(async (aluno) => ({
-        id_aluno: aluno.id_aluno,
-        notas: await carregarNotasAluno(aluno.id_aluno)
-      }))
-    )
+    // Uma única requisição para todos os alunos (antes era uma por aluno).
+    const notas = await carregarNotasAlunos(alunos.value.map(aluno => aluno.id_aluno))
 
     const notasMapPorAluno = new Map()
-    notasPorAluno.forEach(({ id_aluno, notas }) => {
-      const mapa = new Map()
-      notas.forEach((nota) => {
-        mapa.set(`${nota.id_objetivo}__${nota.tipo_nota}`, nota.nota)
-      })
-      notasMapPorAluno.set(String(id_aluno), mapa)
+    notas.forEach((nota) => {
+      const chaveAluno = String(nota.id_aluno)
+      if (!notasMapPorAluno.has(chaveAluno)) notasMapPorAluno.set(chaveAluno, new Map())
+      notasMapPorAluno.get(chaveAluno).set(`${nota.id_objetivo}__${nota.tipo_nota}`, nota.nota)
     })
 
     const linhas = []
