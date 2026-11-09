@@ -118,8 +118,13 @@ const escopoDatas = ref('todas')
 const turmaDatas = ref('')
 
 onMounted(async () => {
-  const anoAtual = new Date().getFullYear()
-  anosDisponiveis.value = [anoAtual - 1, anoAtual, anoAtual + 1, anoAtual + 2]
+  // De 2025 (ano em que o sistema começou) até o ano seguinte ao atual.
+  const ANO_INICIAL = 2025
+  const anoFinal = new Date().getFullYear() + 1
+  anosDisponiveis.value = Array.from(
+    { length: Math.max(anoFinal - ANO_INICIAL + 1, 1) },
+    (_, i) => ANO_INICIAL + i
+  )
 
   try {
     const resp = await axios.get('/api/regimes')

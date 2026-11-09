@@ -7,7 +7,9 @@ use App\Http\Controllers\ObjetivoController;
 use App\Http\Controllers\Auth\MagicLinkController;
 use App\Http\Controllers\PeriodoAvaliacaoController;
 use App\Http\Controllers\RegimeAvaliacaoController;
+use App\Http\Controllers\LiberacaoNotasController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Models\LiberacaoNotas;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -114,11 +116,44 @@ Route::post('/notas', function(\Illuminate\Http\Request $request) {
 
 // Listando notas
 Route::get('/notas', function(\Illuminate\Http\Request $request) {
-    return \DB::table('notas')
+    $query = \DB::table('notas')
         ->where('id_aluno', $request->id_aluno)
-        ->where('periodo', $request->periodo)
+        ->where('periodo', $request->periodo);
         // Remova ou ajuste este filtro conforme sua lógica:
         // ->where('id_objetivo', ...) // se quiser filtrar por objetivo
+
+    // Aluno só recebe as notas do professor (Prof/Rec/CF/CP) se o professor
+    // liberou a turma/período. Faltando parâmetro, considera trancado.
+    if ($request->perfil === 'Aluno') {
+        $liberado = $request->filled(['ano', 'id_materia', 'id_turma', 'periodo'])
+            && LiberacaoNotas::estaLiberado(
+                (int) $request->ano,
+                (int) $request->id_materia,
+                (int) $request->id_turma,
+                $request->origem,
+                (string) $request->periodo
+            );
+
+        if (! $liberado) {
+            $query->where('tipo_nota', 'Est');
+        }
+    }
+
+    return $query->get();
+});
+
+// Listando notas de vários alunos de uma vez (usado pela exportação).
+// Substitui uma requisição GET /notas por aluno, que esgotava o rate limit.
+Route::get('/notas/lote', function(\Illuminate\Http\Request $request) {
+    $alunos = array_values(array_filter((array) $request->input('alunos', []), fn ($id) => $id !== null && $id !== ''));
+
+    if (empty($alunos) || !$request->filled('periodo')) {
+        return response()->json([]);
+    }
+
+    return \DB::table('notas')
+        ->whereIn('id_aluno', $alunos)
+        ->where('periodo', $request->periodo)
         ->get();
 });
 
@@ -219,10 +254,10 @@ Route::get('/token-sophia', [SophiaAuthController::class, 'autenticar']);
 Route::delete('/objetivos/{id}', [ObjetivoController::class, 'destroy']);
 
 // Rota para envio de link mágico
-Route::post('/auth/send-magic-link', [MagicLinkController::class, 'send']);
+Route::post('/auth/send-magic-link', [MagicLinkController::class, 'send'])->middleware('throttle:auth');
 
 // Rota para verificação de OTP
-Route::post('/auth/verify-otp', [MagicLinkController::class, 'verify']);
+Route::post('/auth/verify-otp', [MagicLinkController::class, 'verify'])->middleware('throttle:auth');
 
 // Rota para salvamento de períodos de avaliação
 Route::post('/periodos-avaliacao', [PeriodoAvaliacaoController::class, 'store']);
@@ -237,6 +272,10 @@ Route::get('/regime-turma', [RegimeAvaliacaoController::class, 'daTurma']);
 Route::get('/regimes-avaliacao', [RegimeAvaliacaoController::class, 'index']);
 Route::post('/regimes-avaliacao', [RegimeAvaliacaoController::class, 'store']);
 Route::delete('/regimes-avaliacao/{id}', [RegimeAvaliacaoController::class, 'destroy']);
+
+// Liberação, pelo professor, da visualização das notas pelos alunos
+Route::get('/liberacao-notas', [LiberacaoNotasController::class, 'show']);
+Route::put('/liberacao-notas', [LiberacaoNotasController::class, 'update']);
 
 // Períodos que realmente existem no histórico de objetivos de um ano.
 // Alimenta o seletor de "objetivos passados", que não deve depender do regime
@@ -256,13 +295,13 @@ Route::get('/periodos-objetivos', function(\Illuminate\Http\Request $request) {
 });
 
 // Rota para checar email
-Route::post('/checar-email', [MagicLinkController::class, 'checarEmail']);
+Route::post('/checar-email', [MagicLinkController::class, 'checarEmail'])->middleware('throttle:auth');
 
 // Rota para definir senha
-Route::post('/definir-senha', [AuthController::class, 'definirSenha']);
+Route::post('/definir-senha', [AuthController::class, 'definirSenha'])->middleware('throttle:auth');
 
 // Rota para login
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
 
 // Rota para confirmar alteração de senha
 Route::get('/confirmar-alteracao-senha', [AuthController::class, 'confirmarAlteracaoSenha']);

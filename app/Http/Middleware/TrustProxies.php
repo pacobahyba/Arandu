@@ -15,6 +15,24 @@ class TrustProxies extends Middleware
     protected $proxies;
 
     /**
+     * Lê os proxies confiáveis de TRUSTED_PROXIES no .env ("*" ou lista de IPs/CIDRs
+     * separados por vírgula). Sem isso, atrás de um proxy reverso, $request->ip()
+     * devolve o IP do proxy e todos os usuários compartilham o mesmo rate limit.
+     */
+    protected function proxies()
+    {
+        $proxies = trim((string) config('app.trusted_proxies', ''));
+
+        if ($proxies === '') {
+            return $this->proxies;
+        }
+
+        return $proxies === '*'
+            ? '*'
+            : array_values(array_filter(array_map('trim', explode(',', $proxies))));
+    }
+
+    /**
      * The headers that should be used to detect proxies.
      *
      * @var int

@@ -107,11 +107,11 @@
   <div class="avaliacao-painel avaliacao-painel-notas">
           <table border="1" cellpadding="8" style="background: #dde3f0; width: 100%; text-align: center;">
             <tr style="background: #d3daea;">
-              <td :colspan="isAluno ? 1 : 4" style="font-weight: bold;">NOTAS</td>
+              <td :colspan="mostrarNotasProfessor ? 4 : 1" style="font-weight: bold;">NOTAS</td>
             </tr>
             <tr style="background: #f5f7fa;">
               <th>Est</th>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <th>Prof</th>
                 <th>Rec</th>
                 <th>CF</th>
@@ -119,7 +119,7 @@
             </tr>
             <tr id="linha1">
               <td id="media-conceituais">{{ mediaConceituais }}</td>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <td id="media-prof-conceituais">{{ mediaProfConceituais }}</td>
                 <td>C</td>
                 <td id="media-cf-conceituais">{{ mediaCFConceituais }}</td>
@@ -127,7 +127,7 @@
             </tr>
             <tr id="linha2">
               <td id="media-atitudinais">{{ mediaAtitudinais }}</td>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <td id="media-prof-atitudinais">{{ mediaProfAtitudinais }}</td>
                 <td>A</td>
                 <td id="media-cf-atitudinais">{{ mediaCFAtitudinais }}</td>
@@ -135,15 +135,19 @@
             </tr>
             <tr id="linha3">
               <td id="total-medias">{{ totalMedias }}</td>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <td id="total-prof-medias">{{ totalProfMedias }}</td>
                 <td>T</td>
                 <td id="total-cf-medias">{{ totalCFMedias }}</td>
               </template>
             </tr>
           </table>
-          <div style="margin-top: 1em; font-size: 1.2em; font-weight: bold; text-align: center;">
+          <div v-if="mostrarNotasProfessor" style="margin-top: 1em; font-size: 1.2em; font-weight: bold; text-align: center;">
             Nota final: {{ totalCFMedias }}
+          </div>
+          <!-- Aluno com notas do professor ainda trancadas (tela "Liberar notas") -->
+          <div v-else style="margin-top: 1em; padding: 0.8em; background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; color: #856404; font-weight: bold; text-align: center;">
+            🔒 As notas do professor para este período ainda não foram liberadas.
           </div>
         </div>
       </div>
@@ -169,7 +173,7 @@
               <th>#</th>
               <th>Objetivos Conceituais</th>
               <th>Est</th>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <th>Prof</th>
                 <th>Rec</th>
                 <th>CF</th>
@@ -199,10 +203,10 @@
                   />
                 </template>
               </td>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <!-- Prof -->
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.prof }}
                   </template>
                   <template v-else>
@@ -221,7 +225,7 @@
                   </template>
                 </td>
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.rec }}
                   </template>
                   <template v-else>
@@ -240,7 +244,7 @@
                   </template>
                 </td>
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.cf }}
                   </template>
                   <template v-else>
@@ -273,7 +277,7 @@
               <th>#</th>
               <th>Objetivos Atitudinais e Procedimentais</th>
               <th>Est</th>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <th>Prof</th>
                 <th>Rec</th>
                 <th>CF</th>
@@ -303,10 +307,10 @@
                   />
                 </template>
               </td>
-              <template v-if="!isAluno">
+              <template v-if="mostrarNotasProfessor">
                 <!-- Prof -->
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.prof }}
                   </template>
                   <template v-else>
@@ -325,7 +329,7 @@
                   </template>
                 </td>
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.rec }}
                   </template>
                   <template v-else>
@@ -344,7 +348,7 @@
                   </template>
                 </td>
                 <td>
-                  <template v-if="periodoExpirado">
+                  <template v-if="periodoExpirado || isAluno">
                     {{ objetivo.cf }}
                   </template>
                   <template v-else>
@@ -400,6 +404,75 @@ const carregandoObjetivos = ref(false)
 const anosDisponiveis = ref([])
 const anoSelecionado = ref(new Date().getFullYear())
 const idDisciplinaMae = ref(null) // Armazena id_disciplina_mae para turmas customizadas
+
+// Cache da lista de turmas customizadas: antes ela era buscada até 3 vezes
+// a cada carga da tabela. Invalidado ao trocar de matéria (carregarTurmas).
+let turmasCustomizadasCache = null
+
+function obterTurmasCustomizadas() {
+  if (!turmasCustomizadasCache) {
+    turmasCustomizadasCache = axios.get('/api/turmas-customizadas')
+      .then(resp => resp.data || [])
+      .catch(e => {
+        turmasCustomizadasCache = null
+        throw e
+      })
+  }
+  return turmasCustomizadasCache
+}
+
+// Resolve id_materia/id_turma reais quando a matéria ou a turma é customizada.
+// `origem` ('S' Sophia / 'C' customizada) identifica a turma junto com o id.
+async function resolverMateriaTurma() {
+  let idMateria = materiaSelecionada.value
+  let idTurma = turmaSelecionada.value
+
+  let idCustomizada = null
+  if (String(idMateria).startsWith('custom_')) {
+    idCustomizada = idMateria.replace('custom_', '')
+  } else if (String(idTurma).startsWith('custom_')) {
+    idCustomizada = idTurma.replace('custom_', '')
+  }
+
+  if (idCustomizada === null) return { idMateria, idTurma, origem: origemTurma.value }
+
+  idTurma = idCustomizada
+  try {
+    const lista = await obterTurmasCustomizadas()
+    const row = lista.find(t => String(t.id) === String(idTurma))
+    idMateria = String(row?.id_disciplina_mae ?? (idDisciplinaMae.value || idMateria))
+  } catch {
+    idMateria = idDisciplinaMae.value || idMateria
+  }
+  return { idMateria, idTurma, origem: 'C' }
+}
+
+// Visibilidade das notas do professor (Prof/Rec/CF/nota final) para o aluno,
+// controlada pelo professor na tela "Liberar notas". Demais perfis sempre veem.
+const notasLiberadas = ref(false)
+const mostrarNotasProfessor = computed(() => !isAluno.value || notasLiberadas.value)
+
+async function carregarLiberacaoNotas({ idMateria, idTurma, origem }) {
+  if (!isAluno.value) {
+    notasLiberadas.value = true
+    return
+  }
+  try {
+    const resp = await axios.get('/api/liberacao-notas', {
+      params: {
+        ano: anoSelecionado.value,
+        id_materia: idMateria,
+        id_turma: idTurma,
+        origem,
+        periodo: periodoSelecionado.value
+      }
+    })
+    notasLiberadas.value = resp.data?.liberado === true
+  } catch {
+    // Na dúvida, mantém trancado.
+    notasLiberadas.value = false
+  }
+}
 
 // Origem da turma ('S' Sophia / 'C' customizada) — o mesmo id_turma pode existir
 // nas duas fontes, então regime e calendário precisam do discriminador.
@@ -576,6 +649,7 @@ async function carregarMaterias() {
 
 // Carregar turmas da matéria selecionada
 async function carregarTurmas() {
+  turmasCustomizadasCache = null;
   turmas.value = [];
   turmaSelecionada.value = '';
   if (!materiaSelecionada.value) return;
@@ -728,29 +802,8 @@ async function carregarAlunos() {
 }
 
 async function carregarPorcentagens() {
-  let idMateria = materiaSelecionada.value
-  let idTurma = turmaSelecionada.value
-
   // Se for turma customizada, usa id_disciplina_mae dinâmico
-  if (String(idMateria).startsWith('custom_')) {
-    idTurma = idMateria.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(idTurma))
-      idMateria = String(row?.id_disciplina_mae ?? (idDisciplinaMae.value || idMateria))
-    } catch {
-      idMateria = idDisciplinaMae.value || idMateria
-    }
-  } else if (String(idTurma).startsWith('custom_')) {
-    idTurma = idTurma.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(idTurma))
-      idMateria = String(row?.id_disciplina_mae ?? (idDisciplinaMae.value || idMateria))
-    } catch {
-      idMateria = idDisciplinaMae.value || idMateria
-    }
-  }
+  const { idMateria, idTurma } = await resolverMateriaTurma()
 
   const resp = await axios.get('/api/porcentagem-objetivos', {
     params: {
@@ -807,6 +860,18 @@ function atualizarCFPorMaiorNota(objetivo) {
   objetivo.cf = Number(Math.max(...notasValidas).toFixed(1))
 }
 
+// Evita POSTs desnecessários: o @blur dispara mesmo quando o professor apenas
+// passa pelo campo com Tab. `_salvo` guarda o último valor persistido.
+function notaInalterada(objetivo, campo) {
+  return !!objetivo._salvo &&
+    normalizarNotaParaCalculo(objetivo[campo]) === normalizarNotaParaCalculo(objetivo._salvo[campo])
+}
+
+function registrarNotaSalva(objetivo, campo) {
+  if (!objetivo._salvo) objetivo._salvo = {}
+  objetivo._salvo[campo] = objetivo[campo]
+}
+
 function atualizarCP(objetivo) {
   objetivo.cp = objetivo.prof
   salvarNotaCP(objetivo)
@@ -817,7 +882,8 @@ function atualizarCP(objetivo) {
 // Função para salvar nota CF
 async function salvarNotaCF(objetivo) {
   if (objetivo.cf === null || objetivo.cf === undefined || objetivo.cf === '') return;
-  
+  if (notaInalterada(objetivo, 'cf')) return;
+
   try {
     await axios.post('/api/notas', {
       id_objetivo: objetivo.id_objetivo,
@@ -827,21 +893,16 @@ async function salvarNotaCF(objetivo) {
       periodo: periodoSelecionado.value,
       perfil: sessionStorage.getItem('perfil')
     });
+    registrarNotaSalva(objetivo, 'cf');
   } catch (e) {
     console.error('Erro ao salvar nota CF:', e);
   }
 }
 
 async function salvarNotaEst(objetivo) {
+  if (notaInalterada(objetivo, 'est')) return
+
   try {
-    console.log('Enviando para /api/notas:', {
-      id_objetivo: objetivo.id_objetivo,
-      nota: objetivo.est,
-      tipo_nota: 'Est',
-      id_aluno: alunoSelecionado.value,
-      periodo: periodoSelecionado.value,
-      perfil: sessionStorage.getItem('perfil')
-    })
     await axios.post('/api/notas', {
       id_objetivo: objetivo.id_objetivo,
       nota: objetivo.est,
@@ -850,6 +911,7 @@ async function salvarNotaEst(objetivo) {
       periodo: periodoSelecionado.value,
       perfil: sessionStorage.getItem('perfil')
     })
+    registrarNotaSalva(objetivo, 'est')
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
       alert(e.response.data.message)
@@ -863,14 +925,18 @@ async function salvarNotaProf(objetivo) {
   atualizarCFPorMaiorNota(objetivo)
 
   try {
-    await axios.post('/api/notas', {
-      id_objetivo: objetivo.id_objetivo,
-      nota: objetivo.prof,
-      tipo_nota: 'Prof',
-      id_aluno: alunoSelecionado.value,
-      periodo: periodoSelecionado.value,
-      perfil: sessionStorage.getItem('perfil')
-    })
+    if (!notaInalterada(objetivo, 'prof')) {
+      await axios.post('/api/notas', {
+        id_objetivo: objetivo.id_objetivo,
+        nota: objetivo.prof,
+        tipo_nota: 'Prof',
+        id_aluno: alunoSelecionado.value,
+        periodo: periodoSelecionado.value,
+        perfil: sessionStorage.getItem('perfil')
+      })
+      registrarNotaSalva(objetivo, 'prof')
+    }
+    // salvarNotaCF só envia se o CF calculado mudou.
     await salvarNotaCF(objetivo)
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
@@ -885,14 +951,18 @@ async function salvarNotaRec(objetivo) {
   atualizarCFPorMaiorNota(objetivo)
 
   try {
-    await axios.post('/api/notas', {
-      id_objetivo: objetivo.id_objetivo,
-      nota: objetivo.rec,
-      tipo_nota: 'Rec',
-      id_aluno: alunoSelecionado.value,
-      periodo: periodoSelecionado.value,
-      perfil: sessionStorage.getItem('perfil')
-    })
+    if (!notaInalterada(objetivo, 'rec')) {
+      await axios.post('/api/notas', {
+        id_objetivo: objetivo.id_objetivo,
+        nota: objetivo.rec,
+        tipo_nota: 'Rec',
+        id_aluno: alunoSelecionado.value,
+        periodo: periodoSelecionado.value,
+        perfil: sessionStorage.getItem('perfil')
+      })
+      registrarNotaSalva(objetivo, 'rec')
+    }
+    // salvarNotaCF só envia se o CF calculado mudou.
     await salvarNotaCF(objetivo)
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
@@ -904,6 +974,8 @@ async function salvarNotaRec(objetivo) {
 }
 
 async function salvarNotaCP(objetivo) {
+  if (notaInalterada(objetivo, 'cp')) return
+
   try {
     await axios.post('/api/notas', {
       id_objetivo: objetivo.id_objetivo,
@@ -913,6 +985,7 @@ async function salvarNotaCP(objetivo) {
       periodo: periodoSelecionado.value,
       perfil: sessionStorage.getItem('perfil')
     })
+    registrarNotaSalva(objetivo, 'cp')
   } catch (e) {
     if (e.response && e.response.data && e.response.data.message) {
       alert(e.response.data.message)
@@ -931,29 +1004,12 @@ async function carregarObjetivos() {
   }
 
   // Ajuste para turmas customizadas
-  let turmaId = turmaSelecionada.value
-  let idMateria = materiaSelecionada.value
-  if (String(materiaSelecionada.value).startsWith('custom_')) {
-    turmaId = materiaSelecionada.value.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(turmaId))
-      idMateria = String(row?.id_disciplina_mae ?? idDisciplinaMae.value)
-    } catch {
-      idMateria = idDisciplinaMae.value
-    }
-  } else if (String(turmaId).startsWith('custom_')) {
-    turmaId = turmaId.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(turmaId))
-      idMateria = String(row?.id_disciplina_mae ?? idDisciplinaMae.value)
-    } catch {
-      idMateria = idDisciplinaMae.value
-    }
-  }
+  const resolvido = await resolverMateriaTurma()
+  const { idMateria, idTurma: turmaId } = resolvido
 
   try {
+    await carregarLiberacaoNotas(resolvido)
+
     const resp = await axios.get('/api/objetivos', {
       params: {
         id_materia: idMateria,
@@ -975,6 +1031,9 @@ async function carregarObjetivos() {
       obj.rec = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'Rec')?.nota ?? ''
       obj.cp  = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'CP')?.nota ?? ''
       obj.cf  = notasArr.find(n => n.id_objetivo === obj.id_objetivo && n.tipo_nota === 'CF')?.nota ?? ''
+      // Valores como estão no banco (antes do recálculo do CF), para que só
+      // alterações reais gerem POST /api/notas.
+      obj._salvo = { est: obj.est, prof: obj.prof, rec: obj.rec, cp: obj.cp, cf: obj.cf }
       atualizarCFPorMaiorNota(obj)
     })
 
@@ -998,6 +1057,10 @@ async function carregarAnosObjetivos() {
 }
 
 watchEffect(async () => {
+  // Leitura explícita para registrar o ano como dependência: as funções de
+  // carga só o leem depois de um `await`, quando o watchEffect já não rastreia.
+  void anoSelecionado.value
+
   if (perfilLogado.value === 'Aluno') {
     alunoSelecionado.value = sessionStorage.getItem('aluno_codigo')
   }
@@ -1080,45 +1143,37 @@ async function aoAvaliar() {
     }
   }
   
-  // Aguarda carregar porcentagens e objetivos
+  // Na primeira exibição, basta ligar mostrarTabela: o watchEffect acima
+  // carrega porcentagens e objetivos. Antes os dados eram carregados aqui E
+  // de novo pelo watchEffect, duplicando as requisições.
+  if (!mostrarTabela.value) {
+    mostrarTabela.value = true
+    return
+  }
+
+  // Tabela já visível: o watchEffect não roda de novo se nada mudou, então o
+  // botão funciona como "recarregar".
   await carregarPorcentagens()
   await carregarObjetivos()
-  mostrarTabela.value = true
 }
 
 async function carregarNotas() {
   if (!alunoSelecionado.value || !turmaSelecionada.value || !periodoSelecionado.value) return []
-  let idMateria = materiaSelecionada.value
-  let idTurma = turmaSelecionada.value
 
   // Ajuste para turmas customizadas
-  if (String(idMateria).startsWith('custom_')) {
-    idTurma = idMateria.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(idTurma))
-      idMateria = String(row?.id_disciplina_mae ?? (idDisciplinaMae.value || idMateria))
-    } catch {
-      idMateria = idDisciplinaMae.value || idMateria
-    }
-  } else if (String(idTurma).startsWith('custom_')) {
-    idTurma = idTurma.replace('custom_', '')
-    try {
-      const list = await axios.get('/api/turmas-customizadas')
-      const row = (list.data || []).find(t => String(t.id) === String(idTurma))
-      idMateria = String(row?.id_disciplina_mae ?? (idDisciplinaMae.value || idMateria))
-    } catch {
-      idMateria = idDisciplinaMae.value || idMateria
-    }
-  }
+  const { idMateria, idTurma, origem } = await resolverMateriaTurma()
 
+  // `perfil` e `origem` permitem ao backend omitir as notas do professor
+  // quando o período ainda não foi liberado para o aluno.
   const resp = await axios.get('/api/notas', {
     params: {
       id_aluno: alunoSelecionado.value,
       id_materia: idMateria,
       id_turma: idTurma,
+      origem,
       periodo: periodoSelecionado.value,
-      ano: anoSelecionado.value
+      ano: anoSelecionado.value,
+      perfil: sessionStorage.getItem('perfil')
     }
   })
   return Array.isArray(resp.data) ? resp.data : []
